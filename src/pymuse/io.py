@@ -1,7 +1,6 @@
 import errno
 import os
 import logging
-import warnings
 
 from astropy.wcs import WCS
 from astropy.io import fits
@@ -67,13 +66,13 @@ class MUSEDAP:
         # we also load a file with information about the PSF
         seeing_map_file = os.path.join(data_folder,name,f'{name}_seeing.fits')
         if not os.path.isfile(seeing_map_file):
-            warnings.warn(f'"{name}_seeing.fits" does not exists.')
+            logger.warn(f'"{name}_seeing.fits" does not exists.')
         else:
             try:
                 data,header = fits.getdata(seeing_map_file,extname=f'DATA',header=True)
                 setattr(self,'PSF',data)
             except:
-                warnings.warn(f'could not read seeing information for {name}')
+                logger.warn(f'could not read seeing information for {name}')
             
     def __repr__(self):
         '''create an overview of the available attributes'''
@@ -87,6 +86,50 @@ class MUSEDAP:
                 
         return string
     
+# save lines to individual .fits file
+def split_fits(filename,lines):
+    '''
+    
+    Parameters
+    ----------
+    filename: a fits file containing lines in multiple extensions
+    lines: the lines to save as single files
+    '''
+    
+    # make sure lines is a list
+    lines = [lines] if not isinstance(lines, list) else lines
+    
+    if not os.path.isfile(filename):
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filename)
+    print(f'splitting file: {filename}')
+    
+    with fits.open(filename) as hdul:
+        for line in lines:
+            data = hdul[f'{line}_FLUX']
+            data.writeto(f'{line}.fits',overwrite=True)
+            
+    print('all lines saved')
+    
+filename = os.path.join(data_folder,'NGC628','NGC628_MAPS.fits')
+lines = ['OIII5006','HA6562','NII6583','SII6716']
+
+split_fits(filename,lines)
+
+
+def MOSAIC(filename):
+    '''open the large MOSAIC files in python
+
+    the MOSAIC files contain the full spectral information 
+    '''
+    with fits.open(filename,memmap=True,mode='denywrite') as hdul:
+        wcs = WCS(hdul[1].header)
+        data = hdul[1].data
+            
+        print(data.shape)
+        print(hdul[1].header)
+        #data = hdul[f'{line}_FLUX']
+        #data.writeto(f'{line}.fits',overwrite=True)
+
 # convert pixel coordinates to Ra and Dec   
 #positions = np.transpose((self.sources['xcentroid'], self.sources['ycentroid']))
 #sky_positions = SkyCoord.from_pixel(positions[:,0],positions[:,1],self.wcs)

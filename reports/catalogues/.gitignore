@@ -2,3 +2,7 @@
 *
 # Except this file and .gitignore in sub directories
 !.gitignore
+!raw
+!external
+!preprocessed
+!interim
