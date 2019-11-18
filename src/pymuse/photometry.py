@@ -3,6 +3,7 @@ import numpy as np
 import astropy.units as u        # handle units
 from astropy.coordinates import SkyCoord              # convert pixel to sky coordinates
 
+from astropy.table import vstack
 
 from astropy.stats import sigma_clipped_stats  # calcualte statistics of images
 
@@ -10,7 +11,7 @@ from photutils import CircularAperture         # define circular aperture
 from photutils import CircularAnnulus          # define annulus
 from photutils import aperture_photometry      # measure flux in aperture
 
-from pymuse.io import MUSEDAP
+from pymuse.io import ReadLineMaps
 
 def measure_flux(self,lines=None,aperture_size=1.5):
     '''
@@ -61,7 +62,7 @@ def measure_flux(self,lines=None,aperture_size=1.5):
         
         print(f'measuring fluxes in [{line}] line map')
         
-        # select data and error
+        # select data and error (copy in case we want to modify it)
         data  = getattr(self,f'{line}').copy()
         error = getattr(self,f'{line}_err').copy()
         
