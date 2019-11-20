@@ -5,18 +5,17 @@ from pathlib import Path  # filesystem related stuff
 from astropy.wcs import WCS
 from astropy.io import fits
 
-from pymuse import data_raw, basedir
-
 logger = logging.getLogger(__name__)
 
 class ReadLineMaps:
     '''load a fits file from the MUSEDAP with the line maps
     
-    This class reads the emission line maps from the MUSE datapipeline and 
-    provides a convienient structure to store the data. It is expected that
-    the data resides in the folder `data_raw` and is further subdivided by 
-    folders with the names of the observed objects. 
-    The fits files are named `GalaxyName_MAPS.fits` and contain multiple 
+    This class reads the emission line maps from the MUSE datapipeline
+    and provides a convienient structure to store the data. It is 
+    expected that the data resides in the specified folder which should
+    als obe the name of the object. The folder itself may contain 
+    multiple fits files.
+    The main fits files are named `GalaxyName_MAPS.fits` and contain multiple 
     extenstions of the form `ExtensionName_FLUX` (you must omit the `_FLUX`
     in the name). This script reads only the extensions that are specified 
     by the appropriate keyword. It also tries to read an extension named
@@ -27,28 +26,32 @@ class ReadLineMaps:
     pointings and thus impacts the resulting point spread function (PSF).
     '''
     
-    def __init__(self,name,extensions=['OIII5006','HA6562','NII6583','SII6716']):
+    def __init__(self,folder,extensions=['OIII5006','HA6562']):
         '''
         Parameters
         ----------
         
-        name : string
-            name of the file to be read in. There should be a folder "name"
-            in the previously defined "data_raw". This folder should then
-            contain a file with name "name_MAPS.fits".
+        folder : string
+            name of the folder with the data for one object. This folder
+            must contain a file with name "FolderName_MAPS.fits" and 
+            possibly some additional files
+
         extensions : list
             list of extensions that are read. Each element must be a valid 
             extension in the previously defined fits file (the actual name
             of the extension is `ExtensionName_FLUX` and 
             `ExtensionName_FLUX_ERR` but they are automaticly completed).
         '''
-        
-        logger.info(f'loading {name}')
 
-        self.name     = name
-        self.filename = data_raw / name / f'{name}_MAPS.fits'
+        # PSF is given in arcsec but we need it in pixel
+        _arcsec_to_pixel = 5
+        
+        self.name     = folder.name
+        self.filename = folder / f'{self.name}_MAPS.fits'
         self.lines    = []
         
+        logger.info(f'loading {self.name}')
+
         if not self.filename.is_file():
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.filename)
         
@@ -56,51 +59,44 @@ class ReadLineMaps:
         lines = [extensions] if not isinstance(extensions, list) else extensions
         
         with fits.open(self.filename) as hdul:
-            for line in lines:
 
-                data   = hdul[f'{line}_FLUX'].data
-                # save the main data
-                setattr(self,line,data)
-                
-                # we save the header only if it hasn't been already
-                if not hasattr(self,'header'):
-                    header = hdul[f'{line}_FLUX'].header
-                    setattr(self,'header',header)
-                    setattr(self,'wcs',WCS(header))
-                    setattr(self,'shape',(header['NAXIS2'],header['NAXIS1']))
-                    
+            # save the white-light image
+            header = hdul[f'FLUX'].header
+            setattr(self,'header',header)
+            setattr(self,'wcs',WCS(header))
+            setattr(self,'shape',(header['NAXIS2'],header['NAXIS1']))
+            setattr(self,'whitelight',hdul['FLUX'].data)
+
+            for line in lines:
+                # save the main data and the associated error
+                setattr(self,line,hdul[f'{line}_FLUX'].data)
+                setattr(self,f'{line}_err',hdul[f'{line}_FLUX_ERR'].data)
                 # append to list of available lines
                 self.lines.append(line)
-                
-                err = hdul[f'{line}_FLUX_ERR'].data
-                setattr(self,f'{line}_err',err)
 
-        
+        # and one where OIII is not measured by fitting
+        OIII_bkg_map_file = folder / f'{self.name}_oiii_flux.fits'
+        if OIII_bkg_map_file.is_file():
+            try:
+                # replace the old line maps with the new one
+                setattr(self,'OIII5006_old',getattr(self,'OIII5006'))
+                data = fits.getdata(OIII_bkg_map_file,0)
+                setattr(self,'OIII5006',data)
+            except:
+                logger.info(f'could not read alternate OIII map for {self.name}')
+        else:
+            logger.warn(f'"{self.name}_oiii_flux.fits" does not exists.')
+
         # we also load a file with information about the PSF
-        seeing_map_file = data_raw / name / f'{name}_seeing.fits'
+        seeing_map_file = folder / f'{self.name}_seeing.fits'
         if seeing_map_file.is_file():
             try:
                 data = fits.getdata(seeing_map_file,extname=f'DATA')
-                setattr(self,'PSF',data)
+                setattr(self,'PSF',data*_arcsec_to_pixel)
             except:
-                logger.warn(f'could not read seeing information for {name}')
+                logger.warn(f'could not read seeing information for {self.name}')
         else:
-            logger.warn(f'"{name}_seeing.fits" does not exists.')
-
-        # and one where OIII is measured not by fitting
-        OIII_bkg_map_file = data_raw / name / f'{name}_oiii_flux.fits'
-        if OIII_bkg_map_file.is_file():
-            try:
-                data = fits.getdata(OIII_bkg_map_file,0)
-                setattr(self,'OIII5006_bkg',data)
-                # the photometry function expects an associated error
-                setattr(self,'OIII5006_bkg_err',self.OIII5006_err)
-                self.lines.append('OIII5006_bkg')
-            except:
-                logger.info(f'could not read alternate OIII map for {name}')
-        else:
-            logger.warn(f'"{name}_oiii_flux.fits" does not exists.')
-
+            logger.warn(f'"{self.name}_seeing.fits" does not exists.')
 
         logger.info(f'file loaded with {len(self.lines)} extensions')
 
@@ -141,26 +137,22 @@ def split_fits(filename,lines):
     print('all lines saved')
 
 
-def MOSAIC(filename):
-    '''open the large MOSAIC files in python
+class ReadMosaicFiles:
 
-    the MOSAIC files contain the full spectral information 
-    '''
-    with fits.open(filename,memmap=True,mode='denywrite') as hdul:
-        wcs = WCS(hdul[1].header)
-        data = hdul[1].data
-            
-        print(data.shape)
-        print(hdul[1].header)
-        #data = hdul[f'{line}_FLUX']
-        #data.writeto(f'{line}.fits',overwrite=True)
+    def __init__(self,filename):
+        '''open the large MOSAIC files in python
 
-# convert pixel coordinates to Ra and Dec   
-#positions = np.transpose((self.sources['xcentroid'], self.sources['ycentroid']))
-#sky_positions = SkyCoord.from_pixel(positions[:,0],positions[:,1],self.wcs)
-#print(sky_positions.to_string(style='hmsdms',precision=2))
+        the MOSAIC files contain the full spectral information 
+        '''
 
-if __name__ == '__main__':
+        logger.warning('not yet implemented')
+        sys.exit()
 
-    NGC628 = MUSEDAP('NGC628')
-    print(NGC628)
+        with fits.open(filename,memmap=True,mode='denywrite') as hdul:
+            wcs = WCS(hdul[1].header)
+            data = hdul[1].data
+                
+            print(data.shape)
+            print(hdul[1].header)
+            #data = hdul[f'{line}_FLUX']
+            #data.writeto(f'{line}.fits',overwrite=True)

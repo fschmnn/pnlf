@@ -1,4 +1,6 @@
-import numpy as np
+import logging              # use instead of print for more control
+from pathlib import Path    # filesystem related stuff
+import numpy as np          # numerical computations
 
 import astropy.units as u        # handle units
 from astropy.coordinates import SkyCoord              # convert pixel to sky coordinates
@@ -6,12 +8,19 @@ from astropy.coordinates import SkyCoord              # convert pixel to sky coo
 from astropy.table import vstack
 
 from astropy.stats import sigma_clipped_stats  # calcualte statistics of images
+from astropy.stats import gaussian_fwhm_to_sigma
 
 from photutils import CircularAperture         # define circular aperture
 from photutils import CircularAnnulus          # define annulus
 from photutils import aperture_photometry      # measure flux in aperture
 
-from pymuse.io import ReadLineMaps
+from .io import ReadLineMaps
+
+basedir = Path(__file__).parent.parent.parent
+logger = logging.getLogger(__name__)
+
+def light_in_aperture(x,fwhm):
+    return 1-np.exp(-x**2 / (2*gaussian_fwhm_to_sigma**2*fwhm**2))
 
 def measure_flux(self,lines=None,aperture_size=1.5):
     '''
@@ -31,12 +40,11 @@ def measure_flux(self,lines=None,aperture_size=1.5):
     '''
     
     # convertion factor from arcsec to pixel (used for the PSF)
-    arcsec_to_pixel = 0.2
     input_unit = 1e-20 * u.erg / u.cm**2 / u.s
     
     # self must be of type Galaxy
-    #if not isinstance(self,MUSEDAP):
-    #    raise TypeError('input must be of type Galaxy')
+    if not isinstance(self,ReadLineMaps):
+        raise TypeError('input must be of type Galaxy')
     
     if not lines:
         lines = self.lines
@@ -53,14 +61,14 @@ def measure_flux(self,lines=None,aperture_size=1.5):
     else:
         sources = getattr(self,'peaks_tbl')
         
-    print(f'measuring in {self.name} for {len(sources)} sources')    
+    logger.info(f'measuring in {self.name} for {len(sources)} sources')    
     
     out = {}
     
     # we need to do this for each line
     for line in lines:
         
-        print(f'measuring fluxes in [{line}] line map')
+        logger.info(f'measuring fluxes in [{line}] line map')
         
         # select data and error (copy in case we want to modify it)
         data  = getattr(self,f'{line}').copy()
@@ -75,8 +83,8 @@ def measure_flux(self,lines=None,aperture_size=1.5):
             positions = np.transpose((source_part['x'], source_part['y']))
 
             # define size of aperture and annulus and create a mask for them
-            r     = aperture_size * fwhm / 2 / arcsec_to_pixel
-            r_in  = 3 * fwhm / arcsec_to_pixel
+            r = aperture_size * fwhm / 2
+            r_in  = 3.5 * fwhm / 2
             r_out = np.sqrt(3*r**2+r_in**2)
 
             aperture = CircularAperture(positions, r=r)
@@ -102,20 +110,19 @@ def measure_flux(self,lines=None,aperture_size=1.5):
             # save bkg_median in case we need it again
             phot['bkg_median'] = bkg_median 
             #phot['bkg_median'].unit = input_unit
-                        # multiply background with size of the aperture
-            phot['aperture_bkg'] = bkg_median 
-            phot['aperture_bkg'] *= aperture.area
+            # multiply background with size of the aperture
+            phot['aperture_bkg'] = phot['bkg_median'] * aperture.area
             #phot['aperture_bkg'].unit = input_unit
 
 
             # we don't subtract the background from OIII because there is none
-            if line != 'OIII5006_depends':
-                phot['flux'] = phot['aperture_sum'] - phot['aperture_bkg']
-            else:
+            if line == 'OIII5006_old':
                 phot['flux'] = phot['aperture_sum']
+            else:
+                phot['flux'] = phot['aperture_sum'] - phot['aperture_bkg']
                 
             # correct for flux that is lost outside of the aperture
-            phot['flux'] /= (1-np.exp(-np.log(2)*aperture_size**2))
+            phot['flux'] /= light_in_aperture(r,fwhm/arcsec_to_pixel)
             
             # save fwhm in an additional column
             phot['fwhm'] = fwhm
@@ -153,5 +160,6 @@ def measure_flux(self,lines=None,aperture_size=1.5):
     flux['mOIII'] = -2.5*np.log10(flux['OIII5006']*1e-20) - 13.74
     flux['dmOIII'] = np.abs( 2.5/np.log(10) * flux['OIII5006_err'] / flux['OIII5006'] )
 
-    print('done')
+    logger.info('all flux measurements completed')
+
     return flux

@@ -98,3 +98,26 @@ def plot_detected_stars(self,nrows=10,ncols=10,filename=None):
     if filename:
         plt.savefig(filename)
 
+ 
+def plot_single_stars(self,extension,x,y):
+    '''create cutouts of a single sources and plot it'''
+    
+    data = getattr(self,extension)
+    wcs  = self.wcs
+    
+    # exclude stars that are too close to the border
+    size = 32
+
+    # defien the size of the cutout region
+    size = u.Quantity((size, size), u.pixel)
+    star = Cutout2D(data, (x,y), size,wcs=wcs)
+    
+    #fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(20, 20),squeeze=True)
+    #ax = ax.ravel()
+    
+    fig = plt.figure(figsize=(6,6))
+    
+    # get an index idx from 0 to nrows*ncols and a random index i from 0 to len(stars)
+    ax = fig.add_subplot(1,1,1,projection=star.wcs)
+    norm = simple_norm(star.data, 'log', percent=99.)
+    ax.imshow(star.data, norm=norm, origin='lower', cmap='viridis')
