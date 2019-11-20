@@ -1,17 +1,61 @@
 # pymuse
 
-Python package to manipulate, analyse and plot MUSE data.
+A Python package to manipulate, analyze and plot MUSE data.
 
 ## Description
 
 For my PhD thesis I'm using spectroscopic data from the [Multi Unit Spectroscopic Explorer](https://www.eso.org/sci/facilities/develop/instruments/muse.html) (MUSE) instrument of the VLT. This data has been observed as part of the [PHANGS](https://sites.google.com/view/phangs/home) collaboration. 
 
-The data is already reduced and advanced data products like emission line maps are available from other members of the collaboration. This package aims to provide a structured starting point for exploring and analysing this dataset.
+The data is already reduced and advanced data products like emission line maps are available from other members of the collaboration. This package aims to provide a structured tool for exploring and analyzing this dataset.
+
+## Installation
+
+In principle one could clone this repository from [github](https://github.com/fschmnn/pymuse) and use it right away. However to ensure that everything works as intended, a few additional steps are recommended.
+
+1. **Set up conda environment**: It is highly advised to run data science projects in a dedicated environment. This has the advantage that any third party packages have the correct version installed which helps to make the results reproducible. We use *conda* to do this. The required packages are listed in `environment.yaml` and a new environment, called `pymuse` is created with
+
+   ```bash
+   conda env create -f .\environment.yaml
+   ```
+
+    Every time one opens a new shell, the environment must be activated with
+
+   ```bash
+   conda activate pymuse
+   ```
+
+   New packages can either be installed by altering the installation file and running
+
+   ```bash
+   conda env update -f environment.yaml --prune
+   ```
+
+   or by typing
+
+   ```bash
+   conda install photutils -c astropy
+   ```
+
+   Both cases require an active environment. Lastly, a useful addition when working with *jupyter notebooks* are extensions which can be activated with
+
+   ```bash
+   conda install -c conda-forge jupyter_contrib_nbextensions
+   conda install -c conda-forge jupyter_nbextensions_configurator
+   ```
+
+   
+
+2. **Install the package**: with the dependencies installed, we still need to setup the actual package. To develop the package, simply type
+
+   ```bash
+   python setup.py develop
+   ```
+
+And that's it. You may have noticed that the project already contains folders and files for unit test and documentations. However neither are currently used but both should eventually be added.
 
 ## Project structure
 
-The structure of this project was inspired by [this blog post](https://florianwilhelm.info/2018/11/working_efficiently_with_jupyter_lab/) and was set up using [PyScaffold 3.2.3](https://pyscaffold.org/). 
-
+The structure of this project was inspired by [this blog post](https://florianwilhelm.info/2018/11/working_efficiently_with_jupyter_lab/) and was set up using [PyScaffold 3.2.3](https://pyscaffold.org/). It consists of the following files and folders: 
 
 ```
 ├── AUTHORS.rst             <- List of developers and maintainers.
@@ -31,6 +75,7 @@ The structure of this project was inspired by [this blog post](https://florianwi
 ├── reports                 <- Generated analysis as HTML, PDF, LaTeX, etc.
 │   ├── catalogues          <- 
 │   └── figures             <- Generated plots and figures for reports.
+├── scripts                 <- Python script that are used for final run
 ├── setup.cfg               <- Declarative configuration of your project.
 ├── setup.py                <- Install for development or create a distribution.
 ├── src
@@ -40,59 +85,29 @@ The structure of this project was inspired by [this blog post](https://florianwi
 
 
 
-## Installation
 
 
-The following instructions show how to set up everything initially:
+## Usage
 
-1.  create an *conda environment* with all required packages
+Here are a few examples on what to do with this package
 
-   ```bash
-   conda env create -f .\environment.yaml
+1. Read a fits file from the MUSE data release pipeline (MUSEDAP). This assumes that you have a folder `NGC628` inside your `raw` folder (for more details, see the documentation of `ReadLineMaps`)
+
+   ```python
+   from pathlib import Path
+   from pymuse.io import ReadLineMaps
+   
+   data_folder = Path('../data/raw')
+   NGC628 = ReadLineMaps(data_folder / 'NGC628')
    ```
 
-    the new environment can then be activated with
+2. Search for sources in this file
 
-   ```bash
-   conda activate pymuse
-   ```
-
-   `pymuse` was chosen as the name of the environment in `environment.yaml`. In case new packages need to be installed, the file can be altered an updated with
-
-   ```bash
-   conda env update -f environment.yaml --prune
-   ```
-
-   (this requires an active environment). In case `photutils` isn't installed, use
-
-   ```bash
-   conda install photutils -c astropy
-   ```
-
-   also useful when working with jupyter notebooks:
-
-   ```bash
-   conda install -c conda-forge jupyter_contrib_nbextensions
-   conda install -c conda-forge jupyter_nbextensions_configurator
+   ```python
+   form photutils import DAOStarFinder
+   from pymuse.detection import detect_unresolved_sources
+   
+   sources = detect_unresolved_sources(NGC628,['OIII5006'],DAOStarFinder)
    ```
 
    
-
-2. Now that we have a new 
-
-   setup for development
-
-   ```bash
-   python setup.py develop
-   ```
-
-   install distribution with
-
-   ```bash
-   python setup.py bdist_wheel
-   ```
-
-   
-
-
-

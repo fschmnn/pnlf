@@ -2,8 +2,8 @@ import errno              # handle errors
 import logging            # log errors
 from pathlib import Path  # filesystem related stuff
 
-from astropy.wcs import WCS
-from astropy.io import fits
+from astropy.wcs import WCS    # handle astronomic coordinates
+from astropy.io import fits    # read data from .fits files.
 
 logger = logging.getLogger(__name__)
 
@@ -113,28 +113,31 @@ class ReadLineMaps:
         return string
     
 # save lines to individual .fits file
-def split_fits(filename,lines):
+def split_fits(filename,extensions):
     '''
     
     Parameters
     ----------
-    filename: a fits file containing lines in multiple extensions
-    lines: the lines to save as single files
+    filename: 
+        a fits file containing lines in multiple extensions
+
+    extensions: 
+        the extensions to save as single files
     '''
     
     # make sure lines is a list
-    lines = [lines] if not isinstance(lines, list) else lines
+    extensions = [extensions] if not isinstance(extensions, list) else extensions
     
     if not os.path.isfile(filename):
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), filename)
-    print(f'splitting file: {filename}')
+    print(f'splitting {filename} into seperate files')
     
     with fits.open(filename) as hdul:
-        for line in lines:
-            data = hdul[f'{line}_FLUX']
-            data.writeto(f'{line}.fits',overwrite=True)
+        for ext in extensions:
+            data = hdul[f'{ext}']
+            data.writeto(f'{ext}.fits',overwrite=True)
             
-    print('all lines saved')
+    print(f'{len(extensions)} extension(s) saved to seperate file(s)')
 
 
 class ReadMosaicFiles:
