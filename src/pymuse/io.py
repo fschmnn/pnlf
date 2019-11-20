@@ -26,7 +26,7 @@ class ReadLineMaps:
     pointings and thus impacts the resulting point spread function (PSF).
     '''
     
-    def __init__(self,folder,extensions=['OIII5006','HA6562']):
+    def __init__(self,folder,extensions=['OIII5006','HA6562','NII6583','SII6716']):
         '''
         Parameters
         ----------
@@ -78,6 +78,7 @@ class ReadLineMaps:
         OIII_bkg_map_file = folder / f'{self.name}_oiii_flux.fits'
         if OIII_bkg_map_file.is_file():
             try:
+                logger.info(f'replacing OIII5006 map')
                 # replace the old line maps with the new one
                 setattr(self,'OIII5006_old',getattr(self,'OIII5006'))
                 data = fits.getdata(OIII_bkg_map_file,0)

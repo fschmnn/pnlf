@@ -44,7 +44,7 @@ def measure_flux(self,lines=None,aperture_size=1.5):
     
     # self must be of type Galaxy
     if not isinstance(self,ReadLineMaps):
-        raise TypeError('input must be of type Galaxy')
+        raise TypeError('input must be of type ReadLineMaps')
     
     if not lines:
         lines = self.lines
@@ -122,7 +122,7 @@ def measure_flux(self,lines=None,aperture_size=1.5):
                 phot['flux'] = phot['aperture_sum'] - phot['aperture_bkg']
                 
             # correct for flux that is lost outside of the aperture
-            phot['flux'] /= light_in_aperture(r,fwhm/arcsec_to_pixel)
+            phot['flux'] /= light_in_aperture(r,fwhm)
             
             # save fwhm in an additional column
             phot['fwhm'] = fwhm

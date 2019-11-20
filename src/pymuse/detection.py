@@ -1,8 +1,8 @@
-import logging                                 # use instead of print for more control
-from pathlib import Path                       # filesystem related stuff
+import logging              # use instead of print for more control
+from pathlib import Path    # filesystem related stuff
+import numpy as np          # numerical computations
 
-import numpy as np                             # numerical computation
-
+from astropy.io import ascii
 from astropy.table import Table                # useful data structure
 from astropy.table import vstack               # combine multiple tables
 
@@ -76,12 +76,12 @@ def detect_unresolved_sources(
         # we create a mask for the current pointing (must be inverted)
         mask = ~(PSF == fwhm)
 
-        mean, median, std = sigma_clipped_stats(err[(~np.isnan(err)) & (~mask)], sigma=3.0)
+        mean, median, std = sigma_clipped_stats(data[(~np.isnan(data)) & (~mask)], sigma=3.0)
 
         # initialize daofind 
         # FWHM is given in arcsec. one pixel is 0.2" 
         finder = StarFinder(fwhm      = fwhm * PSF_size, 
-                            threshold = threshold*median,
+                            threshold = threshold*std,
                             sharplo   = 0.2, 
                             sharphi   = 0.8,
                             roundlo   = -0.7,
@@ -123,13 +123,8 @@ def detect_unresolved_sources(
     if save:
         filename = basedir / 'reports' / 'catalogues' / f'peaks_{self.name}.txt'
         with open(filename,'w',newline='\n') as f:
-            peak_tbl[['id','x','y','RaDec']].write(f,format='ascii.no_header',overwrite=True)
+            ascii.write(peak_tbl[['id','x','y','peak','flux','RaDec','fwhm']],
+                        f,format='fixed_width',overwrite=True)
 
     return peak_tbl
     
-
-if __name__ == '__main__':
-    
-    from pymuse.io import MUSEDAP
-    NGC628 = MUSEDAP('NGC628')
-    sources = detect_sources(NGC628,'OIII5006',StarFinder=IRAFStarFinder,threshold=3,PSF_size=0.2)

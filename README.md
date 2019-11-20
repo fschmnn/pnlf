@@ -8,6 +8,8 @@ For my PhD thesis I'm using spectroscopic data from the [Multi Unit Spectroscopi
 
 The data is already reduced and advanced data products like emission line maps are available from other members of the collaboration. This package aims to provide a structured tool for exploring and analyzing this dataset.
 
+A more detailed description of the functionality is either provided by the docstrings of the functions and classes or by the jupyter notebooks. They are annotated with additional background information on what what's happening.
+
 ## Installation
 
 In principle one could clone this repository from [github](https://github.com/fschmnn/pymuse) and use it right away. However to ensure that everything works as intended, a few additional steps are recommended.
@@ -82,10 +84,6 @@ The structure of this project was inspired by [this blog post](https://florianwi
 │   └── pymuse              <- Python package where the main functionality goes.
 └── tests                   <- Unit tests which can be run with `py.test`.
 ```
-
-
-
-
 
 ## Usage
 
