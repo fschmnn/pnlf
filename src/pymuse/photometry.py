@@ -46,25 +46,26 @@ def measure_flux(self,lines=None,aperture_size=1.5):
     if not isinstance(self,ReadLineMaps):
         raise TypeError('input must be of type ReadLineMaps')
     
+    # if no line is specified, we measure the flux in all line maps
     if not lines:
         lines = self.lines
     else:
         # make sure lines is a list
         lines = [lines] if not isinstance(lines, list) else lines
     
-    # check if all required lines exist
-    if set(lines) - set(self.lines):
-        raise AttributeError(f'{self.name} has no attribute {str(lines)}')
+        # check if all required lines exist
+        missing = set(lines) - set(self.lines)
+        if missing:
+            raise AttributeError(f'{self.name} has no attribute {", ".join(missing)}')
     
     if not hasattr(self,'peaks_tbl'):
-        raise AttributeError(f'use "detect_sources" to find sources first')
+        raise AttributeError(f'run `detect_unresolved_sources` to find sources first')
     else:
         sources = getattr(self,'peaks_tbl')
         
-    logger.info(f'measuring in {self.name} for {len(sources)} sources')    
+    logger.info(f'measuring fluxes in {self.name} for {len(sources)} sources')    
     
     out = {}
-    
     # we need to do this for each line
     for line in lines:
         
@@ -74,8 +75,9 @@ def measure_flux(self,lines=None,aperture_size=1.5):
         data  = getattr(self,f'{line}').copy()
         error = getattr(self,f'{line}_err').copy()
         
-        #_, _, std = sigma_clipped_stats(data)
-        #data[data<3*std] = 0
+        if line == 'OIII5006_old':
+            _, _, std = sigma_clipped_stats(data)
+            data[data<3*std] = 0
         
         for fwhm in np.unique(sources['fwhm']):
 

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -5,18 +7,35 @@ import matplotlib.pyplot as plt
 from astropy.table import Table
 
 import astropy.units as u
-
 from astropy.visualization import simple_norm
+
 from astropy.nddata import Cutout2D
 import random
 
 from photutils import CircularAperture         # define circular aperture
 
-def plot_sources(data,wcs,positions,references=None,filename=None):
-    '''plot line map with detected sources'''
+def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
+    '''plot line map with detected sources
+    
+    Parameters
+    ----------
+
+    data : 2d array
+        numpy array that contains the image data
+
+    wcs : 
+        wcs information for the projection
+
+    positions : array or tuple
+        (n,2) shaped array with positions. Can also be a tuple of
+        multiple such arrays.
+
+    filename : Path
+        if given, a PDF of the plot is saved to filename
+    '''
 
     apertures = []
-    if isinstance(positions,tuple):
+    if isinstance(positions,tuple) or isinstance(positions,list):
         for position in positions:
             apertures.append(CircularAperture(position, r=4))
     else:
@@ -25,14 +44,16 @@ def plot_sources(data,wcs,positions,references=None,filename=None):
     fig = plt.figure(figsize=(12,12))
     ax = fig.add_subplot(111, projection=wcs)
     vmax = np.nanpercentile(data,95)
-    #norm = simple_norm(data[~np.isnan(data)], 'log',max_percent=99.99)
+    norm = simple_norm(data[~np.isnan(data)], 'log',max_percent=99.99,clip=False)
+    cmap = plt.cm.Blues_r
+    cmap.set_bad('w')
 
     plt.imshow(data, 
                origin='lower',
-               cmap=plt.cm.Blues_r, 
-               #norm=norm,
-               interpolation='none',
-               vmax=vmax
+               cmap=cmap, 
+               norm=norm,
+               #interpolation='none',
+               #vmax=vmax
               )
 
     colors = ['red','yellow','orange','green']
@@ -43,21 +64,17 @@ def plot_sources(data,wcs,positions,references=None,filename=None):
     ax.set_ylabel('Dec')
 
     if filename:
+        if not isinstance(filename,Path):
+            filename = Path(filename)
+
         plt.savefig(filename)
 
 
-
-
-def plot_detected_stars(self,nrows=10,ncols=10,filename=None):
+def sample_cutouts(data,peaks_tbl,wcs,nrows=10,ncols=10,filename=None):
     '''create cutouts of the detected sources and plot them
     
     
     '''
-    
-    # the data we need
-    peaks_tbl = self.peaks_tbl
-    data      = self.OIII5006
-    wcs       = self.wcs
     
     # exclude stars that are too close to the border
     size = 16
@@ -94,12 +111,23 @@ def plot_detected_stars(self,nrows=10,ncols=10,filename=None):
         norm = simple_norm(stars[i].data, 'log', percent=99.)
         ax.imshow(stars[i].data, norm=norm, origin='lower', cmap='viridis')
 
-        
     if filename:
+        if not isinstance(filename,Path):
+            filename = Path(filename)
+            
         plt.savefig(filename)
 
+def radial_profile(data, center):
+    y, x = np.indices((data.shape))
+    r = np.sqrt((x - center[0])**2 + (y - center[1])**2)
+    r = r.astype(np.int)
+
+    tbin = np.bincount(r.ravel(), data.ravel())
+    nr = np.bincount(r.ravel())
+    radialprofile = tbin / nr
+    return radialprofile
  
-def plot_single_stars(self,extension,x,y):
+def single_cutout(self,extension,x,y):
     '''create cutouts of a single sources and plot it'''
     
     data = getattr(self,extension)
@@ -112,12 +140,19 @@ def plot_single_stars(self,extension,x,y):
     size = u.Quantity((size, size), u.pixel)
     star = Cutout2D(data, (x,y), size,wcs=wcs)
     
+    profile = radial_profile(star.data,star.input_position_cutout)
     #fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(20, 20),squeeze=True)
     #ax = ax.ravel()
     
-    fig = plt.figure(figsize=(6,6))
+    fig = plt.figure(figsize=(10,5))
     
     # get an index idx from 0 to nrows*ncols and a random index i from 0 to len(stars)
-    ax = fig.add_subplot(1,1,1,projection=star.wcs)
-    norm = simple_norm(star.data, 'log', percent=99.)
-    ax.imshow(star.data, norm=norm, origin='lower', cmap='viridis')
+    ax1 = fig.add_subplot(1,2,1,projection=star.wcs)
+    ax2 = fig.add_subplot(1,2,2)
+    
+    norm = simple_norm(star.data, 'log')#, percent=99.)
+    im = ax1.imshow(star.data, norm=norm, origin='lower', cmap='viridis')
+    fig.colorbar(im,ax=ax1)
+
+    ax2.plot(profile)
+    ax2.set_xlabel('radius in px')

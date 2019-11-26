@@ -108,4 +108,12 @@ Here are a few examples on what to do with this package
    sources = detect_unresolved_sources(NGC628,['OIII5006'],DAOStarFinder)
    ```
 
-   
+
+## Todo list
+
+
+
+* [ ] PSF size
+* [ ] Mock sources for completeness limit
+* [ ] Errors
+* [ ] improve maximum likelihood (avoid binning with least square)

@@ -80,7 +80,8 @@ class ReadLineMaps:
             try:
                 logger.info(f'replacing OIII5006 map')
                 # replace the old line maps with the new one
-                setattr(self,'OIII5006_old',getattr(self,'OIII5006'))
+                setattr(self,'OIII5006_DAP',getattr(self,'OIII5006'))
+                setattr(self,'OIII5006_DAP_err',getattr(self,'OIII5006_err'))
                 data = fits.getdata(OIII_bkg_map_file,0)
                 setattr(self,'OIII5006',data)
             except:

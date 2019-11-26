@@ -13,6 +13,9 @@ from astropy.coordinates import SkyCoord
 from photutils import DAOStarFinder            # DAOFIND routine to detect sources
 from photutils import IRAFStarFinder           # IRAF starfind routine to detect stars
 
+from collections import OrderedDict                           # make random table reproducable
+from photutils.datasets import make_random_gaussians_table    # create table with mock sources
+
 #from astropy.convolution import convolve, Gaussian2DKernel
 
 from .io import ReadLineMaps
@@ -27,6 +30,7 @@ def detect_unresolved_sources(
     self : ReadLineMaps,
     line : list,
     StarFinder,
+    data = None,
     threshold : float=4.,
     PSF_size : float=1.,
     save=False
@@ -41,11 +45,11 @@ def detect_unresolved_sources(
     line : string
         name of a line map in self that is used for the detection.
         
+    StarFinder :
+        astropy StarFinder (DAO or IRAF)
+
     threshold : 
         detection threshold in terms of background median
-        
-    arcsec_to_pixel :
-        convert fwhm from arcsec to pixel
 
     save : bool
         save the result is to a file in `reports/catalogues/`
@@ -76,12 +80,12 @@ def detect_unresolved_sources(
         # we create a mask for the current pointing (must be inverted)
         mask = ~(PSF == fwhm)
 
-        mean, median, std = sigma_clipped_stats(data[(~np.isnan(data)) & (~mask)], sigma=3.0)
+        mean, median, std = sigma_clipped_stats(err[(~np.isnan(err)) & (~mask)], sigma=3.0)
 
         # initialize daofind 
         # FWHM is given in arcsec. one pixel is 0.2" 
         finder = StarFinder(fwhm      = fwhm * PSF_size, 
-                            threshold = threshold*std,
+                            threshold = threshold*median,
                             sharplo   = 0.2, 
                             sharphi   = 0.8,
                             roundlo   = -0.7,
@@ -127,4 +131,5 @@ def detect_unresolved_sources(
                         f,format='fixed_width',overwrite=True)
 
     return peak_tbl
-    
+
+
