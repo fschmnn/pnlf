@@ -114,6 +114,7 @@ Here are a few examples on what to do with this package
 
 
 * [ ] PSF size
-* [ ] Mock sources for completeness limit
-* [ ] Errors
-* [ ] improve maximum likelihood (avoid binning with least square)
+* [x] Mock sources for completeness limit (insert into real data, ignoring overlap), improve matching algorithm
+* [ ] Errors (estimate error from CUBE maps)
+* [ ] improve maximum likelihood (avoid binning with least square) Error?
+* [ ] Emission line diagnostics: more careful with NaN values

@@ -1,7 +1,8 @@
 name: pymuse
 channels:
-  - defaults
   - conda-forge
+  - astropy
+  - defaults
 dependencies:
   - python>=3.7
   - pip
@@ -9,6 +10,7 @@ dependencies:
   - numpy
   - photutils
   - scipy
+  - pandas
   - ipython
   - matplotlib
   - extinction
@@ -16,6 +18,8 @@ dependencies:
   # add here only pip-packages that are not available in conda/conda-forge! E.g.:
   # for development only (could also be kept in a separate environment file)
   - jupyterlab
+  - jupyter_contrib_nbextensions
+  - jupyter_nbextensions_configurator
   - pytest
   - pytest-cov
   - tox

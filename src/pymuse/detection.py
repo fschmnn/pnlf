@@ -2,6 +2,8 @@ import logging              # use instead of print for more control
 from pathlib import Path    # filesystem related stuff
 import numpy as np          # numerical computations
 
+import matplotlib.pyplot as plt
+
 from astropy.io import ascii
 from astropy.table import Table                # useful data structure
 from astropy.table import vstack               # combine multiple tables
@@ -14,7 +16,7 @@ from photutils import DAOStarFinder            # DAOFIND routine to detect sourc
 from photutils import IRAFStarFinder           # IRAF starfind routine to detect stars
 
 from collections import OrderedDict                           # make random table reproducable
-from photutils.datasets import make_random_gaussians_table    # create table with mock sources
+from photutils.datasets import make_gaussian_sources_image    # create table with mock sources
 
 #from astropy.convolution import convolve, Gaussian2DKernel
 
@@ -80,7 +82,7 @@ def detect_unresolved_sources(
         # we create a mask for the current pointing (must be inverted)
         mask = ~(PSF == fwhm)
 
-        mean, median, std = sigma_clipped_stats(err[(~np.isnan(err)) & (~mask)], sigma=3.0)
+        mean, median, std = sigma_clipped_stats(data[(~np.isnan(PSF)) & (~mask)], sigma=3.0)
 
         # initialize daofind 
         # FWHM is given in arcsec. one pixel is 0.2" 
@@ -133,3 +135,140 @@ def detect_unresolved_sources(
     return peak_tbl
 
 
+def match_catalogues(matchcoord,catalogcoord):
+    '''compare two catalogues'''
+        
+    idx = np.empty(len(matchcoord),dtype=int)   
+    sep = np.empty(len(matchcoord),dtype=float)
+    
+    for i, row in enumerate(matchcoord):
+        x,y = row
+        sep_i = np.sqrt((x-catalogcoord['xcentroid'])**2+(y-catalogcoord['ycentroid'])**2)
+        idx[i], sep[i] = np.argmin(sep_i), np.min(sep_i)        
+        
+    return idx, sep
+
+def completeness_limit(
+    self,
+    line,
+    StarFinder,
+    threshold,
+    stars_per_mag=10,
+    iterations=1,
+    oversize_PSF=1
+    ): 
+    '''determine completness limit 
+
+    1. Insert mock sources of different brightness
+    2. Run the source detection algorithm
+    3. Compare mock sources to detected sources and determine
+       the faintest sources that have been detected.
+
+    Parameters
+    ----------
+    data : ndarray
+        image with
+
+
+    Returns
+    -------
+    Table
+    '''
+
+    data = getattr(self,line).copy()
+    err  = getattr(self,f'{line}_err').copy()
+    PSF  = getattr(self,'PSF')
+    tshape = data.shape
+    
+    #----------------------------------------------------------------
+    # craete mock data
+    #----------------------------------------------------------------
+    apparent_magnitude = np.arange(27,30,0.5)    
+    n_sources = len(apparent_magnitude) * stars_per_mag
+    
+    for i in range(iterations):
+
+        mock_sources = Table(data=np.zeros((n_sources,7)),names=['magnitude','flux','x_mean','y_mean','x_stddev','y_stddev','theta'])
+        for i,m in enumerate(apparent_magnitude):
+            mock_sources[i*stars_per_mag:(i+1)*stars_per_mag]['magnitude'] = m
+        mock_sources['flux'] = 10**(-(mock_sources['magnitude']+13.74)/2.5) *1e20
+        
+        indices = np.empty((*data.shape,2),dtype=int) 
+        indices[...,0] = np.arange(data.shape[0])[:,None]
+        indices[...,1] = np.arange(data.shape[1])
+        indices = indices[~np.isnan(data)]
+        mock_sources['x_mean'], mock_sources['y_mean'] = np.transpose(indices[np.random.choice(len(indices),n_sources)])
+        mock_sources['x_stddev'] = PSF[mock_sources['x_mean'],mock_sources['y_mean']] / (2*np.sqrt(2*np.log(2))) * oversize_PSF
+        mock_sources['y_stddev'] = mock_sources['x_stddev']
+        mock_sources['amplitude'] = mock_sources['flux'] / (mock_sources['x_stddev']*np.sqrt(2*np.pi))
+
+        logger.info(f'{len(mock_sources)} mock sources created')
+
+        mock_img = make_gaussian_sources_image(tshape,mock_sources)
+        mock_img += data
+        
+        logger.info('mock sources inserted into image')
+        
+        #----------------------------------------------------------------
+        # detection run
+        #----------------------------------------------------------------
+        for fwhm in np.unique(PSF[~np.isnan(PSF)]):
+            mask = ~(PSF == fwhm)
+            mean, median, std = sigma_clipped_stats(mock_img[(~np.isnan(PSF)) & (~mask)], sigma=3.0)
+            #print(f'mean={mean:.2f}, mediam={median:.2f}, std={std:.2f}')
+            
+            finder = StarFinder(fwhm      = fwhm*oversize_PSF, 
+                                threshold = threshold*std,
+                                sharplo   = 0.2, 
+                                sharphi   = 0.8,
+                                roundlo   = -0.7,
+                                roundhi   = 0.7)
+            peaks_part = finder(mock_img, mask=mask)
+            if peaks_part:
+                #logger.info(f'fwhm={fwhm:.3f}: {len(peaks_part)} sources found')
+                if 'peak_tbl' in locals():
+                    peaks_part['id'] += np.amax(peak_tbl['id'],initial=0)
+                    peak_tbl = vstack([peak_tbl,peaks_part])
+                else:
+                    peak_tbl = peaks_part
+            else:
+                pass
+                #logger.info(f'fwhm={fwhm:>7.3f}: no sources found')
+        
+        logger.info(f'{len(peak_tbl)} sources found')
+
+        #----------------------------------------------------------------
+        # compare detected sources to known mock stars
+        #----------------------------------------------------------------
+        logger.info(f'searching for best match')
+        
+        idx , sep = match_catalogues(mock_sources[['x_mean','y_mean']],peak_tbl[['xcentroid','ycentroid']])
+        mock_sources['sep'] = sep
+        mock_sources['peak'] = peak_tbl[idx]['peak']
+
+        bins = np.arange(np.min(apparent_magnitude)-0.25,np.max(apparent_magnitude)+0.75,0.5)
+        h,_ = np.histogram(mock_sources[mock_sources['sep']<0.5]['magnitude'],bins=bins)
+
+        if 'hist' in locals():
+            hist += h 
+        else:
+            hist = h
+
+        del peak_tbl
+    #----------------------------------------------------------------
+    
+    #----------------------------------------------------------------
+    # create the histogram
+    #----------------------------------------------------------------
+    fig, ax = plt.subplots()
+    ax.bar(apparent_magnitude,hist/stars_per_mag*100/iterations,width=0.4)
+    ax.set(xlabel='m$_{[\mathrm{OIII}]}$',
+           ylabel='detected sources in %',
+           ylim=[0,100])
+    plt.show()
+    #----------------------------------------------------------------
+
+    for col in mock_sources.colnames:
+        mock_sources[col].info.format = '%.8g' 
+
+    return mock_sources

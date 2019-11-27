@@ -44,16 +44,16 @@ def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
     fig = plt.figure(figsize=(12,12))
     ax = fig.add_subplot(111, projection=wcs)
     vmax = np.nanpercentile(data,95)
-    norm = simple_norm(data[~np.isnan(data)], 'log',max_percent=99.99,clip=False)
+    norm = simple_norm(data[~np.isnan(data)], 'log',max_percent=95.,clip=False)
     cmap = plt.cm.Blues_r
     cmap.set_bad('w')
 
     plt.imshow(data, 
                origin='lower',
                cmap=cmap, 
-               norm=norm,
+               #norm=norm,
                #interpolation='none',
-               #vmax=vmax
+               vmax=vmax
               )
 
     colors = ['red','yellow','orange','green']
