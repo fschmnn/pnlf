@@ -82,16 +82,16 @@ def detect_unresolved_sources(
         # we create a mask for the current pointing (must be inverted)
         mask = ~(PSF == fwhm)
 
-        mean, median, std = sigma_clipped_stats(data[(~np.isnan(PSF)) & (~mask)], sigma=3.0)
+        mean, median, std = sigma_clipped_stats(err[(~np.isnan(PSF)) & (~mask)], sigma=3.0)
 
         # initialize daofind 
         # FWHM is given in arcsec. one pixel is 0.2" 
         finder = StarFinder(fwhm      = fwhm * PSF_size, 
-                            threshold = threshold*median,
+                            threshold = np.abs(threshold*median),
                             sharplo   = 0.2, 
                             sharphi   = 0.8,
-                            roundlo   = -0.7,
-                            roundhi   = 0.7)
+                            roundlo   = -0.3,
+                            roundhi   = 0.3)
         
         peaks_part = finder(data, mask=mask)
             
@@ -138,12 +138,17 @@ def detect_unresolved_sources(
 def match_catalogues(matchcoord,catalogcoord):
     '''compare two catalogues'''
         
+    if len(matchcoord.columns) !=2 or  len(catalogcoord.columns)!=2:
+        raise ValueError('input tables must have exactly two columns')
+    
+    x_cat_name, y_cat_name = catalogcoord.columns
+    
     idx = np.empty(len(matchcoord),dtype=int)   
     sep = np.empty(len(matchcoord),dtype=float)
     
     for i, row in enumerate(matchcoord):
         x,y = row
-        sep_i = np.sqrt((x-catalogcoord['xcentroid'])**2+(y-catalogcoord['ycentroid'])**2)
+        sep_i = np.sqrt((x-catalogcoord[x_cat_name])**2+(y-catalogcoord[y_cat_name])**2)
         idx[i], sep[i] = np.argmin(sep_i), np.min(sep_i)        
         
     return idx, sep
@@ -265,6 +270,7 @@ def completeness_limit(
     ax.set(xlabel='m$_{[\mathrm{OIII}]}$',
            ylabel='detected sources in %',
            ylim=[0,100])
+    plt.savefig(basedir / 'reports' / 'figures' / f'{self.name}_completness.pdf')
     plt.show()
     #----------------------------------------------------------------
 

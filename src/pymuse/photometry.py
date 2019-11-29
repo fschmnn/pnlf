@@ -2,6 +2,8 @@ import logging              # use instead of print for more control
 from pathlib import Path    # filesystem related stuff
 import numpy as np          # numerical computations
 
+import matplotlib.pyplot as plt  # plot growth curve
+
 import astropy.units as u        # handle units
 from astropy.coordinates import SkyCoord              # convert pixel to sky coordinates
 
@@ -14,12 +16,25 @@ from photutils import CircularAperture         # define circular aperture
 from photutils import CircularAnnulus          # define annulus
 from photutils import aperture_photometry      # measure flux in aperture
 
+import scipy.optimize as optimization          # fit Gaussian to growth curve
+
 from .io import ReadLineMaps
 
 basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
 
 def light_in_aperture(x,fwhm):
+    '''theoretical growth curve for a gaussian PSF
+
+    Parameters
+    ----------
+    x : float
+        Radius of the aperture in units of pixel
+
+    fwhm : float
+        FWHM of the Gaussian in units of pixel
+    '''
+
     return 1-np.exp(-x**2 / (2*gaussian_fwhm_to_sigma**2*fwhm**2))
 
 def measure_flux(self,lines=None,aperture_size=1.5):
@@ -165,3 +180,43 @@ def measure_flux(self,lines=None,aperture_size=1.5):
     logger.info('all flux measurements completed')
 
     return flux
+
+
+def growth_curve(data,x,y,guess=5,plot=False):
+    '''do a growth curve analysis on the given star
+    
+    measure the amount of light as a function of radius and tries
+    to fit a Gaussian to the measured profile. Returns the FWHM
+    of the Gaussian.
+    '''
+    
+    # we measure the flux for apertures of different radii
+    radius = np.arange(2,3.5*guess,1)
+    flux = []
+
+    for r in radius:
+        aperture = CircularAperture((x,y), r=r)
+        annulus_aperture = CircularAnnulus((x,y), r_in=r, r_out=2*r)
+        mask = annulus_aperture.to_mask(method='center')
+        annulus_data = mask.multiply(data)
+        annulus_data_1d = annulus_data[mask.data > 0]
+        _, bkg_median, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)])
+        phot = aperture_photometry(data,aperture)
+        flux.append(phot['aperture_sum'][0]-aperture.area*bkg_median)
+    flux = np.array(flux)   
+    flux = flux/flux[-1]
+
+    guess = 4
+    fit = optimization.curve_fit(light_in_aperture, radius,flux , guess)
+    fwhm = fit[0]
+
+    if plot:
+        plt.plot(radius,flux,label='observed')
+        plt.plot(radius,light_in_aperture(radius,fwhm),label='fit')
+        plt.xlabel('radius in px')
+        plt.ylabel('light in aperture')
+        plt.legend()
+        plt.grid()
+
+    
+    return fit
