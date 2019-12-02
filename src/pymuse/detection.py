@@ -136,7 +136,29 @@ def detect_unresolved_sources(
 
 
 def match_catalogues(matchcoord,catalogcoord):
-    '''compare two catalogues'''
+    '''match elements between two catalogues by distance
+    
+    Parameters
+    ----------
+    matchcoord : astropy Table
+        Table with two columns for x and y positions in pixels. For each
+        element, the distance to the nearest element in `catalogcoord` 
+        is computed.
+
+    catalogcoord : astropy Table
+        Table with two columns for x and y positions in pixels. The 
+        distance to the elements in this catalog are computed.
+
+    Returns
+    -------
+    idx : ndarray
+        For each entry in `matchcoord`, this array contains the index of
+        the nearest neighbor in `catalogcoord`.
+
+    sep : ndarray
+        For each entry in `matchcoord`, this array contains the distance
+        to the nearest neighbor in `catalogcoord`.
+    '''
         
     if len(matchcoord.columns) !=2 or  len(catalogcoord.columns)!=2:
         raise ValueError('input tables must have exactly two columns')

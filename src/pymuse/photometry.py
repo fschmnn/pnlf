@@ -170,9 +170,13 @@ def measure_flux(self,lines=None,aperture_size=1.5):
         flux[k] = v['flux']
         flux[f'{k}_err'] = v['aperture_sum_err']
 
-    
+    flux.rename_column('xcenter','x')
+    flux.rename_column('ycenter','y')
+    flux['x'] = flux['x'].value
+    flux['y'] = flux['y'].value
+
     # calculate astronomical coordinates for comparison
-    flux['SkyCoord'] = SkyCoord.from_pixel(flux['xcenter'],flux['ycenter'],self.wcs)
+    flux['SkyCoord'] = SkyCoord.from_pixel(flux['x'],flux['y'],self.wcs)
    
     flux['mOIII'] = -2.5*np.log10(flux['OIII5006']*1e-20) - 13.74
     flux['dmOIII'] = np.abs( 2.5/np.log(10) * flux['OIII5006_err'] / flux['OIII5006'] )
