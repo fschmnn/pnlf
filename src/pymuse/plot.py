@@ -107,7 +107,10 @@ def sample_cutouts(data,peaks_tbl,wcs,nrows=10,ncols=10,filename=None):
     # get an index idx from 0 to nrows*ncols and a random index i from 0 to len(stars)
     for idx,i in enumerate(random.sample(range(len(stars)), nrows*ncols)):
         ax = fig.add_subplot(nrows,ncols,idx+1,projection=stars[i].wcs)
-        
+
+        if np.any(np.isnan(stars[i].data)):
+            print('this should not be')
+
         norm = simple_norm(stars[i].data, 'log', percent=99.)
         ax.imshow(stars[i].data, norm=norm, origin='lower', cmap='viridis')
 
@@ -156,3 +159,46 @@ def single_cutout(self,extension,x,y):
 
     ax2.plot(profile)
     ax2.set_xlabel('radius in px')
+
+
+def create_RGB(r,g,b,percentile=90):
+    '''combie three arrays to one RGB image
+    
+    Parameters
+    ----------
+    r : ndarray
+        (n,m) array that is used for the red channel
+        
+    g : ndarray
+        (n,m) array that is used for the green channel
+        
+    b : ndarray
+        (n,m) array that is used for the blue channel
+    
+    percentile : float
+        percentile that is used for the normalization
+        
+    Returns
+    -------
+    rgb : ndarray
+        (n,m,3) array that is normalized to 1
+    '''
+    
+    if not r.shape == g.shape == b.shape:
+        raise ValueError('input arrays must have the dimensions')
+    
+    # create an empty array with teh correct size
+    rgb = np.empty((*r.shape,3))
+    
+    # assign the input arrays to the 3 channels and normalize them to 1
+    rgb[...,0] = r / np.nanpercentile(r,percentile)
+    rgb[...,1] = g / np.nanpercentile(g,percentile)
+    rgb[...,2] = b / np.nanpercentile(b,percentile)
+    
+    # clip values (we use percentile for the normalization) and fill nan
+    rgb = np.clip(np.nan_to_num(rgb,nan=1),a_min=0,a_max=1)
+    
+    return rgb
+    
+
+    

@@ -129,7 +129,7 @@ class MaximumLikelihood:
         the sum of the logarithmic probabilities.
         '''
         
-        return np.sum(np.log(self.func(self.data,*params)))
+        return -np.prod(self.func(self.data,*params))
     
     def fit(self,guess):
         '''use scipy minimize to find the best parameters'''

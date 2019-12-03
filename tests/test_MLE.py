@@ -7,7 +7,7 @@ def gaussian(x,mu,sig):
     return 1/np.sqrt(2*np.pi*sig**2) * np.exp(-(x-mu)**2/(2*sig**2))
 
 def test_gaussian():
-    n_data = 500
+    n_data = 100
     mu, sig = 3.141, 2.71
     data = np.random.normal(mu,sig,n_data)
 
@@ -21,7 +21,7 @@ def poission(k,lam):
     return lam**k * np.exp(-lam) / factorial(k)
 
 def test_poission():
-    n_data = 500
+    n_data = 100
     lam = 4
     data = np.random.poisson(lam,n_data)
 
