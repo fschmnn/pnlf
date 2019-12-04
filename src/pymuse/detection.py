@@ -32,9 +32,8 @@ def detect_unresolved_sources(
     self : ReadLineMaps,
     line : list,
     StarFinder,
-    data = None,
     threshold : float=4.,
-    PSF_size : float=1.,
+    oversize_PSF : float=1.,
     save=False
     ) -> Table:
     '''detect unresolved sources in a ReadLineMaps object
@@ -86,12 +85,12 @@ def detect_unresolved_sources(
 
         # initialize daofind 
         # FWHM is given in arcsec. one pixel is 0.2" 
-        finder = StarFinder(fwhm      = fwhm * PSF_size, 
+        finder = StarFinder(fwhm      = fwhm * oversize_PSF, 
                             threshold = np.abs(threshold*median),
                             sharplo   = 0.2, 
                             sharphi   = 0.8,
-                            roundlo   = -0.3,
-                            roundhi   = 0.3)
+                            roundlo   = -0.4,
+                            roundhi   = 0.4)
         
         peaks_part = finder(data, mask=mask)
             
@@ -241,15 +240,15 @@ def completeness_limit(
         #----------------------------------------------------------------
         for fwhm in np.unique(PSF[~np.isnan(PSF)]):
             mask = ~(PSF == fwhm)
-            mean, median, std = sigma_clipped_stats(mock_img[(~np.isnan(PSF)) & (~mask)], sigma=3.0)
+            mean, median, std = sigma_clipped_stats(err[(~np.isnan(PSF)) & (~mask)], sigma=3.0)
             #print(f'mean={mean:.2f}, mediam={median:.2f}, std={std:.2f}')
             
             finder = StarFinder(fwhm      = fwhm*oversize_PSF, 
-                                threshold = threshold*std,
+                                threshold = threshold*median,
                                 sharplo   = 0.2, 
                                 sharphi   = 0.8,
-                                roundlo   = -0.7,
-                                roundhi   = 0.7)
+                                roundlo   = -0.5,
+                                roundhi   = 0.5)
             peaks_part = finder(mock_img, mask=mask)
             if peaks_part:
                 #logger.info(f'fwhm={fwhm:.3f}: {len(peaks_part)} sources found')

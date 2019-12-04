@@ -9,14 +9,23 @@ from inspect import signature
 
 logger = logging.getLogger(__name__)
 
+
 def emission_line_diagnostics(table,distance_modulus,completeness_limit):
-    '''Classify sources based on emission lines 
+    '''Classify objects based on their emission lines 
     
-    criteria1:
+    we use three criteria to distinguish between PN, HII regions and SNR:
+    
+    criteria1 -> emperical upper limit
     4 > log10 [OIII] / (Ha +[NII])
     
-    criteria2:
+    criteria2 -> HII regions
     log10 [OIII] / (Ha +[NII]) > -0.37 M[OIII] - 1.16
+    
+    criteria3 -> SNR
+    Ha / [SII] < 2.5
+    
+    The second criteria requires the absolute magnitude of the objects. 
+    Therefor the distance_modulus
     
     
     Parameters
@@ -30,12 +39,12 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
     distance_modulus : float 
        A first guess of the distance modulus (used for diagnostics)
        distance_modulus = m - M
+       
+    Returns
+    -------
+    table : Astropy Table
+        The input table with an additional column, indicating the type of the object
     '''
-    
-        
-    # make sure the input is of the correct type
-    if not isinstance(table,Table):
-        raise TypeError('wrong input')
     
     # next we check if all columns exist
     required = ['OIII5006','HA6562','NII6583','SII6716','mOIII']
@@ -44,8 +53,8 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
         raise KeyError(f'input table is missing {", ".join(missing)}')
     del missing
        
-    #
-    # Preparation
+    # otherwise we modify the input table
+    table = table.copy()
                        
     # calculate the absolute magnitude based on a first estimate of the distance modulus 
     table['MOIII'] = table['mOIII'] - distance_modulus
@@ -63,19 +72,21 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
     mask =  np.ones(len(table), dtype=bool)
     for col in required:
         mask &=  ~np.isnan(table[col])
-    table = table[mask]
-    logger.info(f'{len(mask[mask==False])} rows were removed because they contain NaN values')
+    table['type'][np.where(mask==False)] = 'NaN'
+    #table = table[mask]
+    logger.info(f'{len(mask[mask==False])} rows contain NaN values')
 
     mask = table['mOIII']< completeness_limit
+    table['type'][np.where(mask==False)] = 'cl'
     table = table[mask]
-    logger.info(f'{len(mask[mask==False])} objects below the completness limit removed')    
+    logger.info(f'{len(mask[mask==False])} objects below the completness limit')    
                        
     table['type'][np.where(4 < np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])))] = ''
     table['type'][np.where(np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])) < -0.37*table['MOIII'] - 1.16)] = 'HII'
     table['type'][np.where(table['HA6562'] / table['SII6716'] < 2.5)] = 'SNR'
 
+    logger.info(f'{len(table[table["type"]==""])} objects classified as 4<log [OIII]/Ha')
     logger.info(f'{len(table[table["type"]=="HII"])} objects classified as HII')
-    logger.info(f'{len(table[table["type"]==""])} objects classified as ...')
     logger.info(f'{len(table[table["type"]=="SNR"])} objects classified as SNR')
     logger.info(f'{len(table[table["type"]=="PN"])} possible planetary nebula found')
     
@@ -109,15 +120,17 @@ class MaximumLikelihood:
     func : function
         PDF of the form `func(data,params)`. `func` must accept a
         ndarray for `data` and can have any number of additional
-        parameters.
+        parameters (at least one).
         
     data : ndarray
         Measured data that are feed into `func`.
     '''
     
-    def __init__(self,func,data):
+    def __init__(self,func,data,err=None):
         
         self.data = data
+        self.err  = err
+
         if len(signature(func).parameters)<2:
             raise ValueError(f'`func` must accept at least two arguments')
         self.func = func
@@ -129,15 +142,17 @@ class MaximumLikelihood:
         the sum of the logarithmic probabilities.
         '''
         
-        return -np.prod(self.func(self.data,*params))
+        return -np.sum(np.log(self.func(self.data,*params)))
     
     def fit(self,guess):
         '''use scipy minimize to find the best parameters'''
         
         self.result = minimize(self.loglik,guess,method ='Nelder-Mead')
+
+        print(self.result)
         #for name,var in zip(list(signature(self.func).parameters)[1:],self.result.x):
         #    print(f'{name}={var:.3g}')
-        return self.result.x
+        return self.result
 
     def __call__(self,guess):
         return self.fit(guess)

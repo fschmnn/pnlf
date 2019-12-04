@@ -37,7 +37,7 @@ def light_in_aperture(x,fwhm):
 
     return 1-np.exp(-x**2 / (2*gaussian_fwhm_to_sigma**2*fwhm**2))
 
-def measure_flux(self,lines=None,aperture_size=1.5):
+def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
     '''
     measure flux for all lines in lines
     
@@ -100,8 +100,8 @@ def measure_flux(self,lines=None,aperture_size=1.5):
             positions = np.transpose((source_part['x'], source_part['y']))
 
             # define size of aperture and annulus and create a mask for them
-            r = aperture_size * fwhm / 2
-            r_in  = 3.5 * fwhm / 2
+            r = aperture_size * fwhm / 2 * oversize_PSF
+            r_in  = 4 * fwhm / 2 * oversize_PSF
             r_out = np.sqrt(3*r**2+r_in**2)
 
             aperture = CircularAperture(positions, r=r)
@@ -133,13 +133,13 @@ def measure_flux(self,lines=None,aperture_size=1.5):
 
 
             # we don't subtract the background from OIII because there is none
-            if line == 'OIII5006_old':
+            if line == 'OIII5006_DAP':
                 phot['flux'] = phot['aperture_sum']
             else:
                 phot['flux'] = phot['aperture_sum'] - phot['aperture_bkg']
                 
             # correct for flux that is lost outside of the aperture
-            phot['flux'] /= light_in_aperture(r,fwhm)
+            phot['flux'] /= light_in_aperture(r,fwhm*oversize_PSF)
             
             # save fwhm in an additional column
             phot['fwhm'] = fwhm
@@ -168,6 +168,7 @@ def measure_flux(self,lines=None,aperture_size=1.5):
             flux = v[['id','xcenter','ycenter','fwhm']]
 
         flux[k] = v['flux']
+        # aperture_sum_err or aperture_bkg
         flux[f'{k}_err'] = v['aperture_sum_err']
 
     flux.rename_column('xcenter','x')
