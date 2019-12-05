@@ -71,6 +71,10 @@ class ReadLineMaps:
                 # save the main data and the associated error
                 setattr(self,line,hdul[f'{line}_FLUX'].data)
                 setattr(self,f'{line}_err',hdul[f'{line}_FLUX_ERR'].data)
+
+                setattr(self,f'{line}_SIGMA',hdul[f'{line}_SIGMA'].data)
+                setattr(self,f'{line}_SIGMA_CORR',hdul[f'{line}_SIGMA_CORR'].data)
+
                 # append to list of available lines
                 self.lines.append(line)
 

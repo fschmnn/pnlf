@@ -78,7 +78,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
 
     mask = table['mOIII']< completeness_limit
     table['type'][np.where(mask==False)] = 'cl'
-    table = table[mask]
+    #table = table[mask]
     logger.info(f'{len(mask[mask==False])} objects below the completness limit')    
                        
     table['type'][np.where(4 < np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])))] = ''
@@ -92,24 +92,40 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
     
     return table
 
-def pnlf(m,mu,N0):
-    '''planetary nebula luminosity function
+def PNLF(m,mu,completeness=None):
+    '''Planetary Nebula Luminosity Function (PNLF)
     
+    N(m) ~ e^0.307(m-mu) * (1-e^3(Mmax-m+mu))
+    
+    The normalization is calculated by integrating from Mmax+mu
+    (the root of the function) to the specified completeness. 
+    Objects that lie outside this intervall are ignored.
+
     Parameters
     ----------
-        
     m : ndarray
         apparent magnitudes of the PNs
         
     mu : float
         distance modulus
     '''
+    #completneness = 28
     
+    if not completeness:
+        raise ValueError('specify completeness')
+
     Mmax = -4.47
-    delta = 2.5
-    norm = np.exp(0.307*Mmax - 2.693*delta)*(0.371333 - 3.62866*np.exp(2.693*delta) + 3.25733 * np.exp(3*delta))
+
+    m = np.atleast_1d(m)
+    m = m[(m<completeness) & (m>Mmax+mu)]
+
+    normalization = -3.62866*np.exp(0.307*Mmax) + 3.25733*np.exp(0.307*completeness-0.307*mu) + 0.371333 * np.exp(3*Mmax - 2.693 * completeness + 2.693 * mu)
     
-    return N0*np.exp(0.307*(m-mu)) * (1-np.exp(3*(Mmax-m+mu)))
+    out = np.exp(0.307*(m-mu)) * (1-np.exp(3*(Mmax-m+mu))) / normalization
+    
+    #out[(m>completeness) & (m<Mmax+mu)] = 0
+    
+    return out
 
 
 class MaximumLikelihood:
@@ -124,37 +140,66 @@ class MaximumLikelihood:
         
     data : ndarray
         Measured data that are feed into `func`.
+
+    err : ndarray
+        Error associated with data.
+
+    method : 
+        algorithm that is used for the minimization.
+
+    **kwargs
+       additional fixed key word arguments that are passed to func.
     '''
     
-    def __init__(self,func,data,err=None):
+    def __init__(self,func,data,err=None,method='Nelder-Mead',**kwargs):
         
-        self.data = data
-        self.err  = err
-
-        if len(signature(func).parameters)<2:
-            raise ValueError(f'`func` must accept at least two arguments')
+        if len(signature(func).parameters)-len(kwargs)<2:
+            raise ValueError(f'`func` must have at least one free argument')
         self.func = func
 
-    def loglik(self,params):
+        self.data   = data
+        self.err    = err
+        self.method = method
+        self.kwargs = kwargs
+
+    def _loglike(self,params,data):
         '''calculate the log liklihood of the given parameters
         
         This function takes the previously specified PDF and calculates
-        the sum of the logarithmic probabilities.
+        the sum of the logarithmic probabilities. If key word arguments
+        were initially passed to the class, they are also passed to the
+        function
         '''
-        
-        return -np.sum(np.log(self.func(self.data,*params)))
-    
+        return -np.sum(np.log(self.func(data,*params,**self.kwargs)))
+
     def fit(self,guess):
         '''use scipy minimize to find the best parameters'''
         
-        self.result = minimize(self.loglik,guess,method ='Nelder-Mead')
+        self.result = minimize(self._loglike,guess,args=(self.data),method=self.method)
+        self.x = self.result.x
+        if not self.result.success:
+            raise RuntimeError('fit was not successful')
 
-        print(self.result)
-        #for name,var in zip(list(signature(self.func).parameters)[1:],self.result.x):
-        #    print(f'{name}={var:.3g}')
-        return self.result
+        self.dx = np.zeros((len(self.x),2))
+        if np.any(self.err):
+            
+            self.result_m = minimize(self._loglike,guess,args=(self.data-self.err),method=self.method)
+            self.result_p = minimize(self._loglike,guess,args=(self.data+self.err),method=self.method)
+
+            if not self.result_m.success or not self.result_p.success:
+                raise RuntimeError('fit for error was not successful')
+            
+            self.dx[:,0] = self.x - self.result_m.x
+            self.dx[:,1] = self.result_p.x - self.x
+
+        for name,_x,_dx in zip(list(signature(self.func).parameters)[1:],self.x,self.dx):
+            print(f'{name} = {_x:.3f} + {_dx[1]:.3f} - {_dx[0]:.3f} ')
+
+        return self.x
 
     def __call__(self,guess):
+        '''use scipy minimize to find the best parameters'''
+
         return self.fit(guess)
         
 
