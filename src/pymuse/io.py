@@ -65,7 +65,9 @@ class ReadLineMaps:
             setattr(self,'header',header)
             setattr(self,'wcs',WCS(header))
             setattr(self,'shape',(header['NAXIS2'],header['NAXIS1']))
+            setattr(self,'V_STARS',hdul['V_STARS'].data)
             setattr(self,'whitelight',hdul['FLUX'].data)
+            setattr(self,'whitelight_err',hdul['SNR'].data)
 
             for line in lines:
                 # save the main data and the associated error

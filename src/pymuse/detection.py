@@ -22,6 +22,10 @@ from photutils.datasets import make_gaussian_sources_image    # create table wit
 
 from .io import ReadLineMaps
 
+_roundness   = 0.4
+_sharpnesslo = 0.2
+_sharpnesshi = 0.8
+
 basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
 
@@ -87,10 +91,10 @@ def detect_unresolved_sources(
         # FWHM is given in arcsec. one pixel is 0.2" 
         finder = StarFinder(fwhm      = fwhm * oversize_PSF, 
                             threshold = np.abs(threshold*median),
-                            sharplo   = 0.2, 
-                            sharphi   = 0.8,
-                            roundlo   = -0.4,
-                            roundhi   = 0.4)
+                            sharplo   = _sharpnesslo, 
+                            sharphi   = _sharpnesshi,
+                            roundlo   = -_roundness,
+                            roundhi   = _roundness)
         
         peaks_part = finder(data, mask=mask)
             
@@ -245,10 +249,10 @@ def completeness_limit(
             
             finder = StarFinder(fwhm      = fwhm*oversize_PSF, 
                                 threshold = threshold*median,
-                                sharplo   = 0.2, 
-                                sharphi   = 0.8,
-                                roundlo   = -0.5,
-                                roundhi   = 0.5)
+                                sharplo   = _sharpnesslo, 
+                                sharphi   = _sharpnesshi,
+                                roundlo   = -_roundness,
+                                roundhi   = _roundness)
             peaks_part = finder(mock_img, mask=mask)
             if peaks_part:
                 #logger.info(f'fwhm={fwhm:.3f}: {len(peaks_part)} sources found')

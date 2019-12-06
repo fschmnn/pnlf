@@ -89,8 +89,9 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
         # select data and error (copy in case we want to modify it)
         data  = getattr(self,f'{line}').copy()
         error = getattr(self,f'{line}_err').copy()
-        
-        if line == 'OIII5006_old':
+        v_disp = getattr(self,f'{line}_SIGMA') - getattr(self,f'{line}_SIGMA_CORR') 
+
+        if line == 'OIII5006_DAP':
             _, _, std = sigma_clipped_stats(data)
             data[data<3*std] = 0
         
@@ -101,7 +102,7 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
 
             # define size of aperture and annulus and create a mask for them
             r = aperture_size * fwhm / 2 * oversize_PSF
-            r_in  = 4 * fwhm / 2 * oversize_PSF
+            r_in  = 5 * fwhm / 2 * oversize_PSF
             r_out = np.sqrt(3*r**2+r_in**2)
 
             aperture = CircularAperture(positions, r=r)
@@ -117,20 +118,21 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
                 _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)])
                 bkg_median.append(median_sigclip)
             
-            #bkg_median = np.array(bkg_median)
-            
             phot = aperture_photometry(data, 
                                        aperture, 
                                        error = error,
                                       )
-            
+
             # save bkg_median in case we need it again
-            phot['bkg_median'] = bkg_median 
-            #phot['bkg_median'].unit = input_unit
+            phot['bkg_median'] = np.array(bkg_median) 
             # multiply background with size of the aperture
             phot['aperture_bkg'] = phot['bkg_median'] * aperture.area
-            #phot['aperture_bkg'].unit = input_unit
 
+            aperture = CircularAperture(positions, r=0.5*r)
+            SIGMA = aperture_photometry(v_disp, 
+                                       aperture, 
+                                      )
+            phot['sigma'] = SIGMA['aperture_sum'] / aperture.area
 
             # we don't subtract the background from OIII because there is none
             if line == 'OIII5006_DAP':
@@ -139,7 +141,7 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
                 phot['flux'] = phot['aperture_sum'] - phot['aperture_bkg']
                 
             # correct for flux that is lost outside of the aperture
-            phot['flux'] /= light_in_aperture(r,fwhm*oversize_PSF)
+            #phot['flux'] /= light_in_aperture(r,fwhm*oversize_PSF)
             
             # save fwhm in an additional column
             phot['fwhm'] = fwhm
@@ -168,26 +170,21 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
             flux = v[['id','xcenter','ycenter','fwhm']]
 
         flux[k] = v['flux']
-        # aperture_sum_err or aperture_bkg
         flux[f'{k}_err'] = v['aperture_sum_err']
+        flux[f'{k}_bkg'] = v['aperture_bkg']
+        flux[f'{k}_sig'] = v['sigma']
 
     flux.rename_column('xcenter','x')
     flux.rename_column('ycenter','y')
     flux['x'] = flux['x'].value
     flux['y'] = flux['y'].value
 
-    # calculate astronomical coordinates for comparison
-    flux['SkyCoord'] = SkyCoord.from_pixel(flux['x'],flux['y'],self.wcs)
-   
-    flux['mOIII'] = -2.5*np.log10(flux['OIII5006']*1e-20) - 13.74
-    flux['dmOIII'] = np.abs( 2.5/np.log(10) * flux['OIII5006_err'] / flux['OIII5006'] )
-
     logger.info('all flux measurements completed')
 
     return flux
 
 
-def growth_curve(data,x,y,guess=5,plot=False):
+def growth_curve(data,x,y,r_aperture=10,plot=False):
     '''do a growth curve analysis on the given star
     
     measure the amount of light as a function of radius and tries
@@ -196,7 +193,7 @@ def growth_curve(data,x,y,guess=5,plot=False):
     '''
     
     # we measure the flux for apertures of different radii
-    radius = np.arange(2,3.5*guess,1)
+    radius = np.arange(2,r_aperture,1)
     flux = []
 
     for r in radius:

@@ -92,7 +92,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
     
     return table
 
-def PNLF(m,mu,completeness=None):
+def PNLF(m,mu,completeness,truncate=False):
     '''Planetary Nebula Luminosity Function (PNLF)
     
     N(m) ~ e^0.307(m-mu) * (1-e^3(Mmax-m+mu))
@@ -108,8 +108,14 @@ def PNLF(m,mu,completeness=None):
         
     mu : float
         distance modulus
+
+    completeness : float
+        completeness level (magnitude of the faintest sources that
+        are consistently detected).
+
+    truncate : bool
+        mask the output based on completeness (required for MLE)
     '''
-    #completneness = 28
     
     if not completeness:
         raise ValueError('specify completeness')
@@ -117,13 +123,15 @@ def PNLF(m,mu,completeness=None):
     Mmax = -4.47
 
     m = np.atleast_1d(m)
-    m = m[(m<completeness) & (m>Mmax+mu)]
+
+    if truncate:
+        m = m[(m<completeness)]
 
     normalization = -3.62866*np.exp(0.307*Mmax) + 3.25733*np.exp(0.307*completeness-0.307*mu) + 0.371333 * np.exp(3*Mmax - 2.693 * completeness + 2.693 * mu)
     
     out = np.exp(0.307*(m-mu)) * (1-np.exp(3*(Mmax-m+mu))) / normalization
     
-    #out[(m>completeness) & (m<Mmax+mu)] = 0
+    out[(m>completeness) & (m<Mmax+mu)] = 0
     
     return out
 
