@@ -22,9 +22,9 @@ from photutils.datasets import make_gaussian_sources_image    # create table wit
 
 from .io import ReadLineMaps
 
-_roundness   = 0.4
-_sharpnesslo = 0.2
-_sharpnesshi = 0.8
+_roundness   = 0.8
+_sharpnesslo = 0.1
+_sharpnesshi = 0.9
 
 basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ def detect_unresolved_sources(
     self : ReadLineMaps,
     line : list,
     StarFinder,
-    threshold : float=4.,
+    threshold : float=5.,
     oversize_PSF : float=1.,
     save=False
     ) -> Table:
@@ -83,20 +83,18 @@ def detect_unresolved_sources(
     for fwhm in np.unique(PSF[~np.isnan(PSF)]):
                 
         # we create a mask for the current pointing (must be inverted)
-        mask = ~(PSF == fwhm)
+        mask = (PSF == fwhm) & (~np.isnan(PSF))
 
-        mean, median, std = sigma_clipped_stats(err[(~np.isnan(PSF)) & (~mask)], sigma=3.0)
+        mean, median, std = sigma_clipped_stats(err[mask], sigma=3.0,maxiters=None)
 
-        # initialize daofind 
-        # FWHM is given in arcsec. one pixel is 0.2" 
+        # initialize and run StarFinder (DAOPHOT or IRAF)
         finder = StarFinder(fwhm      = fwhm * oversize_PSF, 
                             threshold = np.abs(threshold*median),
                             sharplo   = _sharpnesslo, 
                             sharphi   = _sharpnesshi,
                             roundlo   = -_roundness,
                             roundhi   = _roundness)
-        
-        peaks_part = finder(data, mask=mask)
+        peaks_part = finder(data, mask=~mask)
             
         # save fwhm in an additional column
         peaks_part['fwhm'] = fwhm
@@ -276,8 +274,9 @@ def completeness_limit(
         mock_sources['sep'] = sep
         mock_sources['peak'] = peak_tbl[idx]['peak']
 
+        sep_pix = 0.5
         bins = np.arange(np.min(apparent_magnitude)-0.25,np.max(apparent_magnitude)+0.75,0.5)
-        h,_ = np.histogram(mock_sources[mock_sources['sep']<0.5]['magnitude'],bins=bins)
+        h,_ = np.histogram(mock_sources[mock_sources['sep']<sep_pix]['magnitude'],bins=bins)
 
         if 'hist' in locals():
             hist += h 

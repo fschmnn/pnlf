@@ -89,7 +89,7 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
         # select data and error (copy in case we want to modify it)
         data  = getattr(self,f'{line}').copy()
         error = getattr(self,f'{line}_err').copy()
-        v_disp = getattr(self,f'{line}_SIGMA') - getattr(self,f'{line}_SIGMA_CORR') 
+        v_disp = np.sqrt(getattr(self,f'{line}_SIGMA')**2 - getattr(self,f'{line}_SIGMA_CORR')**2)
 
         if line == 'OIII5006_DAP':
             _, _, std = sigma_clipped_stats(data)
@@ -102,7 +102,8 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
 
             # define size of aperture and annulus and create a mask for them
             r = aperture_size * fwhm / 2 * oversize_PSF
-            r_in  = 5 * fwhm / 2 * oversize_PSF
+            r_in  = 3. * fwhm / 2 * oversize_PSF
+            r_in = r
             r_out = np.sqrt(3*r**2+r_in**2)
 
             aperture = CircularAperture(positions, r=r)
@@ -115,7 +116,7 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
                 # select the pixels inside the annulus and calulate sigma clipped median
                 annulus_data = mask.multiply(data)
                 annulus_data_1d = annulus_data[mask.data > 0]
-                _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)])
+                _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)])          
                 bkg_median.append(median_sigclip)
             
             phot = aperture_photometry(data, 
@@ -128,11 +129,10 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
             # multiply background with size of the aperture
             phot['aperture_bkg'] = phot['bkg_median'] * aperture.area
 
-            aperture = CircularAperture(positions, r=0.5*r)
-            SIGMA = aperture_photometry(v_disp, 
-                                       aperture, 
-                                      )
-            phot['sigma'] = SIGMA['aperture_sum'] / aperture.area
+            # calculate the average of the velocity dispersion
+            aperture = CircularAperture(positions, r=fwhm/2*oversize_PSF)
+            SIGMA = aperture_photometry(v_disp,aperture)
+            phot['SIGMA'] = SIGMA['aperture_sum'] / aperture.area
 
             # we don't subtract the background from OIII because there is none
             if line == 'OIII5006_DAP':
@@ -141,7 +141,7 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
                 phot['flux'] = phot['aperture_sum'] - phot['aperture_bkg']
                 
             # correct for flux that is lost outside of the aperture
-            #phot['flux'] /= light_in_aperture(r,fwhm*oversize_PSF)
+            phot['flux'] /= light_in_aperture(r,fwhm*oversize_PSF)
             
             # save fwhm in an additional column
             phot['fwhm'] = fwhm
@@ -170,9 +170,12 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
             flux = v[['id','xcenter','ycenter','fwhm']]
 
         flux[k] = v['flux']
+        flux[f'{k}_apsum'] = v['aperture_sum']
+        flux[f'{k}_apbkg'] = v['aperture_bkg']
+
         flux[f'{k}_err'] = v['aperture_sum_err']
-        flux[f'{k}_bkg'] = v['aperture_bkg']
-        flux[f'{k}_sig'] = v['sigma']
+        flux[f'{k}_bkg'] = v['bkg_median']
+        flux[f'{k}_SIGMA'] = v['SIGMA']
 
     flux.rename_column('xcenter','x')
     flux.rename_column('ycenter','y')

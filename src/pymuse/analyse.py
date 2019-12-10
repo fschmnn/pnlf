@@ -64,10 +64,14 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
                        
     # if the flux is smaller than the error we set it to the error
     for line in ['OIII5006','HA6562','NII6583','SII6716']:
-        table[table[line]<table[f'{line}_err']][line] = table[table[line]<table[f'{line}_err']][f'{line}_err']
+        table[line][np.where(table[line]<table[f'{line}_err'])] = table[table[line]<table[f'{line}_err']][f'{line}_err']
                        
     logger.info(f'{len(table)} entries in initial catalogue')
-             
+                       
+    table['type'][np.where(4 < np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])))] = ''
+    table['type'][np.where(np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])) < -0.37*table['MOIII'] - 1.16)] = 'HII'
+    table['type'][np.where(table['HA6562'] / table['SII6716'] < 2.5)] = 'SNR'
+
     # remove rows with NaN values in some columns
     mask =  np.ones(len(table), dtype=bool)
     for col in required:
@@ -77,13 +81,10 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
     logger.info(f'{len(mask[mask==False])} rows contain NaN values')
 
     mask = table['mOIII']< completeness_limit
-    table['type'][np.where(mask==False)] = 'cl'
+    #table['type'][np.where(mask==False)] = 'cl'
     #table = table[mask]
     logger.info(f'{len(mask[mask==False])} objects below the completness limit')    
-                       
-    table['type'][np.where(4 < np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])))] = ''
-    table['type'][np.where(np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])) < -0.37*table['MOIII'] - 1.16)] = 'HII'
-    table['type'][np.where(table['HA6562'] / table['SII6716'] < 2.5)] = 'SNR'
+
 
     logger.info(f'{len(table[table["type"]==""])} objects classified as 4<log [OIII]/Ha')
     logger.info(f'{len(table[table["type"]=="HII"])} objects classified as HII')
@@ -183,6 +184,8 @@ class MaximumLikelihood:
     def fit(self,guess):
         '''use scipy minimize to find the best parameters'''
         
+        logger.info(f'searching for best parameters with {len(self.data)} data points')
+
         self.result = minimize(self._loglike,guess,args=(self.data),method=self.method)
         self.x = self.result.x
         if not self.result.success:

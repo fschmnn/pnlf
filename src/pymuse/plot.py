@@ -58,7 +58,7 @@ def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
 
     colors = ['red','yellow','orange','green']
     for i,aperture in enumerate(apertures):
-        aperture.plot(color=colors[i],lw=.6, alpha=0.5)
+        aperture.plot(color=colors[i],lw=.6, alpha=0.9)
 
     ax.set_xlabel('RA')
     ax.set_ylabel('Dec')
