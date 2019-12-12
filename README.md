@@ -1,6 +1,6 @@
 # pymuse
 
-A Python package to manipulate, analyze and plot MUSE data.
+A Python package to manipulate, analyze and plot MUSE data. The name is preliminary and will be changed later to avoid confusion with the existing [PyMUSE](https://github.com/ismaelpessa/PyMUSE) package.
 
 ## Description
 
