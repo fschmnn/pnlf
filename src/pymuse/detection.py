@@ -21,6 +21,7 @@ from photutils.datasets import make_gaussian_sources_image    # create table wit
 #from astropy.convolution import convolve, Gaussian2DKernel
 
 from .io import ReadLineMaps
+from .auxiliary import correct_PSF
 
 _roundness   = 0.8
 _sharpnesslo = 0.1
@@ -87,8 +88,10 @@ def detect_unresolved_sources(
 
         mean, median, std = sigma_clipped_stats(err[mask], sigma=3.0,maxiters=None)
 
+        PSF_correction = correct_PSF(line)
+
         # initialize and run StarFinder (DAOPHOT or IRAF)
-        finder = StarFinder(fwhm      = fwhm * oversize_PSF, 
+        finder = StarFinder(fwhm      = fwhm * oversize_PSF * PSF_correction, 
                             threshold = np.abs(threshold*median),
                             sharplo   = _sharpnesslo, 
                             sharphi   = _sharpnesshi,

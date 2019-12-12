@@ -19,6 +19,7 @@ from photutils import aperture_photometry      # measure flux in aperture
 import scipy.optimize as optimization          # fit Gaussian to growth curve
 
 from .io import ReadLineMaps
+from .auxiliary import correct_PSF
 
 basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
@@ -35,7 +36,8 @@ def light_in_aperture(x,fwhm):
         FWHM of the Gaussian in units of pixel
     '''
 
-    return 1-np.exp(-x**2 / (2*gaussian_fwhm_to_sigma**2*fwhm**2))
+    return 1-np.exp(-4*np.log(2)*x**2 / fwhm**2)
+    #return 1-np.exp(-x**2 / (2*gaussian_fwhm_to_sigma**2*fwhm**2))
 
 def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
     '''
@@ -91,9 +93,7 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
         error = getattr(self,f'{line}_err').copy()
         v_disp = np.sqrt(getattr(self,f'{line}_SIGMA')**2 - getattr(self,f'{line}_SIGMA_CORR')**2)
 
-        if line == 'OIII5006_DAP':
-            _, _, std = sigma_clipped_stats(data)
-            data[data<3*std] = 0
+        PSF_correction = correct_PSF(line)
         
         for fwhm in np.unique(sources['fwhm']):
 
@@ -101,9 +101,9 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
             positions = np.transpose((source_part['x'], source_part['y']))
 
             # define size of aperture and annulus and create a mask for them
-            r = aperture_size * fwhm / 2 * oversize_PSF
-            r_in  = 3. * fwhm / 2 * oversize_PSF
-            r_in = r
+            r = aperture_size * fwhm / 2 * oversize_PSF * PSF_correction 
+            r_in  = 3. * fwhm / 2 * oversize_PSF * PSF_correction
+            #r_in = r
             r_out = np.sqrt(3*r**2+r_in**2)
 
             aperture = CircularAperture(positions, r=r)
@@ -141,7 +141,7 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
                 phot['flux'] = phot['aperture_sum'] - phot['aperture_bkg']
                 
             # correct for flux that is lost outside of the aperture
-            phot['flux'] /= light_in_aperture(r,fwhm*oversize_PSF)
+            phot['flux'] /= light_in_aperture(r,fwhm*oversize_PSF*correct_PSF)
             
             # save fwhm in an additional column
             phot['fwhm'] = fwhm
@@ -196,12 +196,14 @@ def growth_curve(data,x,y,r_aperture=10,plot=False):
     '''
     
     # we measure the flux for apertures of different radii
-    radius = np.arange(2,r_aperture,1)
+    radius = np.arange(1,r_aperture-2,1)
     flux = []
 
     for r in radius:
         aperture = CircularAperture((x,y), r=r)
-        annulus_aperture = CircularAnnulus((x,y), r_in=r, r_out=2*r)
+        r_in = r_aperture
+        r_out = 1.5*r_in
+        annulus_aperture = CircularAnnulus((x,y), r_in=r_in, r_out=r_out)
         mask = annulus_aperture.to_mask(method='center')
         annulus_data = mask.multiply(data)
         annulus_data_1d = annulus_data[mask.data > 0]
@@ -217,7 +219,7 @@ def growth_curve(data,x,y,r_aperture=10,plot=False):
 
     if plot:
         plt.plot(radius,flux,label='observed')
-        plt.plot(radius,light_in_aperture(radius,fwhm),label='fit')
+        plt.plot(radius,light_in_aperture(radius,fwhm),label='fit',ls='--')
         plt.xlabel('radius in px')
         plt.ylabel('light in aperture')
         plt.legend()

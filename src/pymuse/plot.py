@@ -130,15 +130,12 @@ def radial_profile(data, center):
     radialprofile = tbin / nr
     return radialprofile
  
-def single_cutout(self,extension,x,y):
+def single_cutout(self,extension,x,y,size=32):
     '''create cutouts of a single sources and plot it'''
     
     data = getattr(self,extension)
     wcs  = self.wcs
     
-    # exclude stars that are too close to the border
-    size = 32
-
     # defien the size of the cutout region
     size = u.Quantity((size, size), u.pixel)
     star = Cutout2D(data, (x,y), size,wcs=wcs)
