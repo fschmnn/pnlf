@@ -25,22 +25,6 @@ from .auxiliary import correct_PSF, test_convergence
 basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
 
-def light_in_aperture(x,fwhm):
-    '''theoretical growth curve for a gaussian PSF
-
-    Parameters
-    ----------
-    x : float
-        Radius of the aperture in units of pixel
-
-    fwhm : float
-        FWHM of the Gaussian in units of pixel
-    '''
-
-    return 1-np.exp(-4*np.log(2)*x**2 / fwhm**2)
-
-
-    #return 1-np.exp(-x**2 / (2*gaussian_fwhm_to_sigma**2*fwhm**2))
 
 def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
     '''
@@ -294,9 +278,30 @@ def fwhm_moffat(alpha,gamma):
     return 2*gamma * np.sqrt(2**(1/alpha)-1) 
 
 def light_in_moffat(x,alpha,gamma):
+    '''theoretical growth curve for a moffat PSF
+
+    f(x;alpha,gamma) ~ [1+r^2/gamma^2]^-alpha
+
+    Parameters
+    ----------
+    x : float
+        Radius of the aperture in units of pixel
+    '''
+
     return 1-(1+x**2/gamma**2)**(1-alpha)
 
 def light_in_gaussian(x,fwhm):
+    '''theoretical growth curve for a gaussian PSF
+
+    Parameters
+    ----------
+    x : float
+        Radius of the aperture in units of pixel
+
+    fwhm : float
+        FWHM of the Gaussian in units of pixel
+    '''
+
     return 1-np.exp(-4*np.log(2)*x**2 / fwhm**2)
 
 
