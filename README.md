@@ -1,6 +1,6 @@
 # pymuse
 
-A Python package to manipulate, analyze and plot MUSE data.
+A Python package to manipulate, analyze and plot MUSE data. The name is preliminary and will be changed later to avoid confusion with the existing [PyMUSE](https://github.com/ismaelpessa/PyMUSE) package.
 
 ## Description
 
@@ -102,19 +102,8 @@ Here are a few examples on what to do with this package
 2. Search for sources in this file
 
    ```python
-   form photutils import DAOStarFinder
+   from photutils import DAOStarFinder
    from pymuse.detection import detect_unresolved_sources
    
    sources = detect_unresolved_sources(NGC628,['OIII5006'],DAOStarFinder)
    ```
-
-
-## Todo list
-
-
-
-* [ ] PSF size
-* [x] Mock sources for completeness limit (insert into real data, ignoring overlap), improve matching algorithm
-* [ ] Errors (estimate error from CUBE maps)
-* [ ] improve maximum likelihood (avoid binning with least square) Error?
-* [ ] Emission line diagnostics: more careful with NaN values
