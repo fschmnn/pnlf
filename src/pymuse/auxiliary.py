@@ -4,7 +4,7 @@ import numpy as np
 correct_PSF = lambda lam: 1- 4.7e-5*(int(lam[-4:])-6450)
 
 
-def test_convergence(array,length=5,threshold=0.01):
+def test_convergence(array,length=4,threshold=0.05):
     '''test if the given array approches a constant limit
     
     Parameters

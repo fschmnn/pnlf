@@ -64,7 +64,9 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
                        
     # if the flux is smaller than the error we set it to the error
     for line in ['OIII5006','HA6562','NII6583','SII6716']:
-        table[line][np.where(table[line]<table[f'{line}_err'])] = table[table[line]<table[f'{line}_err']][f'{line}_err']
+        mask = table[line]<table[f'{line}_err']
+        #print(f'{line}: {np.sum(mask)} values replaced')
+        table[line][np.where(mask)] = table[f'{line}_err'][np.where(mask)]
                        
     logger.info(f'{len(table)} entries in initial catalogue')
                        

@@ -58,7 +58,9 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
     aperture_size : float
        size of the aperture in multiples of the fwhm
     '''
-    
+
+    #del self.peaks_tbl['SkyCoord']
+
     # convertion factor from arcsec to pixel (used for the PSF)
     input_unit = 1e-20 * u.erg / u.cm**2 / u.s
     
@@ -103,10 +105,16 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
             source_part = sources[sources['fwhm']==fwhm]
             positions = np.transpose((source_part['x'], source_part['y']))
 
+            alpha = 3
+            gamma = fwhm * PSF_correction / (2*np.sqrt(2**(1/alpha)-1))
+
             # define size of aperture and annulus and create a mask for them
-            r = aperture_size * fwhm / 2 * oversize_PSF * PSF_correction 
+            if False: #line == 'OIII5006':
+                r =  3 * fwhm / 2 * oversize_PSF * PSF_correction 
+            else:
+                r = aperture_size * fwhm / 2 * oversize_PSF * PSF_correction 
+            
             r_in  = 3. * fwhm / 2 * oversize_PSF * PSF_correction
-            #r_in = r
             r_out = np.sqrt(3*r**2+r_in**2)
 
             aperture = CircularAperture(positions, r=r)
@@ -119,7 +127,7 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
                 # select the pixels inside the annulus and calulate sigma clipped median
                 annulus_data = mask.multiply(data)
                 annulus_data_1d = annulus_data[mask.data > 0]
-                _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)])          
+                _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],maxiters=None)          
                 bkg_median.append(median_sigclip)
             
             phot = aperture_photometry(data, 
@@ -133,7 +141,7 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
             phot['aperture_bkg'] = phot['bkg_median'] * aperture.area
 
             # calculate the average of the velocity dispersion
-            aperture = CircularAperture(positions, r=fwhm/2*oversize_PSF)
+            aperture = CircularAperture(positions, r=fwhm)
             SIGMA = aperture_photometry(v_disp,aperture)
             phot['SIGMA'] = SIGMA['aperture_sum'] / aperture.area
 
@@ -144,7 +152,7 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
                 phot['flux'] = phot['aperture_sum'] - phot['aperture_bkg']
                 
             # correct for flux that is lost outside of the aperture
-            phot['flux'] /= light_in_aperture(r,fwhm*oversize_PSF*PSF_correction)
+            phot['flux'] /= light_in_moffat(r,alpha,gamma)
             
             # save fwhm in an additional column
             phot['fwhm'] = fwhm
@@ -190,7 +198,7 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
     return flux
 
 
-def growth_curve(data,x,y,model,r_aperture=10,plot=False):
+def growth_curve(data,x,y,model,rmax=30,plot=False):
     '''do a growth curve analysis on the given star
     
     measure the amount of light as a function of radius and tries
@@ -200,21 +208,24 @@ def growth_curve(data,x,y,model,r_aperture=10,plot=False):
     Parameters
     ----------
 
-    model : 
-        an instance of an `astropy.modeling.functional_models`
+    model : str
+        shape of the PSF. Must be either `gaussian` or `moffat`.
+    
+    rmax : float
+        maximum radius for the growth curve
     '''
     
     # -----------------------------------------------------------------
     # determine background (we use same bkg_median for all apertures)
     # -----------------------------------------------------------------
 
-    r_in = r_aperture
-    r_out = 1.5*r_in
+    r_in  = 0.7*rmax
+    r_out = rmax
     annulus_aperture = CircularAnnulus((x,y), r_in=r_in, r_out=r_out)
     mask = annulus_aperture.to_mask(method='center')
     annulus_data = mask.multiply(data)
     annulus_data_1d = annulus_data[mask.data > 0]
-    _, bkg_median, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)])
+    _, bkg_median, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],maxiters=None)
 
     # -----------------------------------------------------------------
     # measure flux for different aperture radii
@@ -225,8 +236,8 @@ def growth_curve(data,x,y,model,r_aperture=10,plot=False):
 
     r = 1
     while True:
-        if r > r_aperture:
-            logger.warning(f'no convergence within a radius of {r_aperture}')
+        if r > rmax:
+            #logger.warning(f'no convergence within a radius of {rmax}')
             break
 
         aperture = CircularAperture((x,y), r=r)
@@ -248,12 +259,11 @@ def growth_curve(data,x,y,model,r_aperture=10,plot=False):
     # -----------------------------------------------------------------
 
     if model == 'moffat':
-        guess = np.array([4.765,15.15])
+        guess = np.array([2,2])
         func = light_in_moffat
         fit,sig = optimization.curve_fit(func, radius,flux , guess)
         alpha, gamma = fit[0], fit[1]
         fwhm = 2*gamma * np.sqrt(2**(1/alpha)-1)
-
         print(f'alpha={alpha:.2f}, gamma={gamma:.2f}, fwhm={fwhm:.2f}')
 
 
@@ -262,24 +272,25 @@ def growth_curve(data,x,y,model,r_aperture=10,plot=False):
         func = light_in_gaussian
         fit,sig = optimization.curve_fit(func, radius,flux , guess)
         fwhm = fit[0]
-
     else:
         raise TypeError('model must be `moffat` or `gaussian`')
 
+    
     if plot:
         plt.plot(radius,flux,label='observed')
         plt.plot(radius,func(radius,*fit),label='fit',ls='--')
-        #if fwhm_measured:
-        #    plt.plot(radius,light_in_aperture(radius,fwhm_measured),label='fit',ls='--',color='tab:red')
+
         plt.xlabel('radius in px')
         plt.ylabel('light in aperture')
         plt.legend()
         plt.grid()
 
-    return fwhm
+    return fit
 
 
 def fwhm_moffat(alpha,gamma):
+    '''calculate the FWHM of a Moffat'''
+
     return 2*gamma * np.sqrt(2**(1/alpha)-1) 
 
 def light_in_moffat(x,alpha,gamma):
@@ -287,6 +298,7 @@ def light_in_moffat(x,alpha,gamma):
 
 def light_in_gaussian(x,fwhm):
     return 1-np.exp(-4*np.log(2)*x**2 / fwhm**2)
+
 
 
 def light_in_moffat_old(x,alpha,gamma):
