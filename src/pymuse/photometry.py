@@ -10,16 +10,17 @@ from astropy.coordinates import SkyCoord              # convert pixel to sky coo
 from astropy.table import vstack
 
 from astropy.stats import sigma_clipped_stats  # calcualte statistics of images
-from astropy.stats import gaussian_fwhm_to_sigma
+from astropy.stats import gaussian_fwhm_to_sigma, gaussian_sigma_to_fwhm
 
 from photutils import CircularAperture         # define circular aperture
 from photutils import CircularAnnulus          # define annulus
 from photutils import aperture_photometry      # measure flux in aperture
 
 import scipy.optimize as optimization          # fit Gaussian to growth curve
+from scipy.special import hyp2f1
 
 from .io import ReadLineMaps
-from .auxiliary import correct_PSF
+from .auxiliary import correct_PSF, test_convergence
 
 basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
@@ -37,6 +38,8 @@ def light_in_aperture(x,fwhm):
     '''
 
     return 1-np.exp(-4*np.log(2)*x**2 / fwhm**2)
+
+
     #return 1-np.exp(-x**2 / (2*gaussian_fwhm_to_sigma**2*fwhm**2))
 
 def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
@@ -141,7 +144,7 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
                 phot['flux'] = phot['aperture_sum'] - phot['aperture_bkg']
                 
             # correct for flux that is lost outside of the aperture
-            phot['flux'] /= light_in_aperture(r,fwhm*oversize_PSF*correct_PSF)
+            phot['flux'] /= light_in_aperture(r,fwhm*oversize_PSF*PSF_correction)
             
             # save fwhm in an additional column
             phot['fwhm'] = fwhm
@@ -187,43 +190,109 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
     return flux
 
 
-def growth_curve(data,x,y,r_aperture=10,plot=False):
+def growth_curve(data,x,y,model,r_aperture=10,plot=False):
     '''do a growth curve analysis on the given star
     
     measure the amount of light as a function of radius and tries
     to fit a Gaussian to the measured profile. Returns the FWHM
     of the Gaussian.
+
+    Parameters
+    ----------
+
+    model : 
+        an instance of an `astropy.modeling.functional_models`
     '''
     
-    # we measure the flux for apertures of different radii
-    radius = np.arange(1,r_aperture-2,1)
-    flux = []
+    # -----------------------------------------------------------------
+    # determine background (we use same bkg_median for all apertures)
+    # -----------------------------------------------------------------
 
-    for r in radius:
+    r_in = r_aperture
+    r_out = 1.5*r_in
+    annulus_aperture = CircularAnnulus((x,y), r_in=r_in, r_out=r_out)
+    mask = annulus_aperture.to_mask(method='center')
+    annulus_data = mask.multiply(data)
+    annulus_data_1d = annulus_data[mask.data > 0]
+    _, bkg_median, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)])
+
+    # -----------------------------------------------------------------
+    # measure flux for different aperture radii
+    # -----------------------------------------------------------------
+
+    radius = []
+    flux   = []
+
+    r = 1
+    while True:
+        if r > r_aperture:
+            logger.warning(f'no convergence within a radius of {r_aperture}')
+            break
+
         aperture = CircularAperture((x,y), r=r)
-        r_in = r_aperture
-        r_out = 1.5*r_in
-        annulus_aperture = CircularAnnulus((x,y), r_in=r_in, r_out=r_out)
-        mask = annulus_aperture.to_mask(method='center')
-        annulus_data = mask.multiply(data)
-        annulus_data_1d = annulus_data[mask.data > 0]
-        _, bkg_median, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)])
         phot = aperture_photometry(data,aperture)
         flux.append(phot['aperture_sum'][0]-aperture.area*bkg_median)
+        radius.append(r)
+
+        if test_convergence(flux):
+            break
+        
+        r += 1
+
+    radius = np.array(radius)
     flux = np.array(flux)   
     flux = flux/flux[-1]
 
-    guess = 4
-    fit = optimization.curve_fit(light_in_aperture, radius,flux , guess)
-    fwhm = fit[0]
+    # -----------------------------------------------------------------
+    # fit moffat or gaussian
+    # -----------------------------------------------------------------
+
+    if model == 'moffat':
+        guess = np.array([4.765,15.15])
+        func = light_in_moffat
+        fit,sig = optimization.curve_fit(func, radius,flux , guess)
+        alpha, gamma = fit[0], fit[1]
+        fwhm = 2*gamma * np.sqrt(2**(1/alpha)-1)
+
+        print(f'alpha={alpha:.2f}, gamma={gamma:.2f}, fwhm={fwhm:.2f}')
+
+
+    elif model == 'gaussian':
+        guess =5
+        func = light_in_gaussian
+        fit,sig = optimization.curve_fit(func, radius,flux , guess)
+        fwhm = fit[0]
+
+    else:
+        raise TypeError('model must be `moffat` or `gaussian`')
 
     if plot:
         plt.plot(radius,flux,label='observed')
-        plt.plot(radius,light_in_aperture(radius,fwhm),label='fit',ls='--')
+        plt.plot(radius,func(radius,*fit),label='fit',ls='--')
+        #if fwhm_measured:
+        #    plt.plot(radius,light_in_aperture(radius,fwhm_measured),label='fit',ls='--',color='tab:red')
         plt.xlabel('radius in px')
         plt.ylabel('light in aperture')
         plt.legend()
         plt.grid()
 
-    
-    return fit
+    return fwhm
+
+
+def fwhm_moffat(alpha,gamma):
+    return 2*gamma * np.sqrt(2**(1/alpha)-1) 
+
+def light_in_moffat(x,alpha,gamma):
+    return 1-(1+x**2/gamma**2)**(1-alpha)
+
+def light_in_gaussian(x,fwhm):
+    return 1-np.exp(-4*np.log(2)*x**2 / fwhm**2)
+
+
+def light_in_moffat_old(x,alpha,gamma):
+    '''
+    without r from rdr one gets an hpyerfunction ...
+    '''
+    r_inf = 100
+    f_inf = r_inf*hyp2f1(1/2,alpha,3/2,-r_inf**2/gamma**2)
+    return x*hyp2f1(1/2,alpha,3/2,-x**2/gamma**2) / f_inf
