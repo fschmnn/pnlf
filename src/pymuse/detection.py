@@ -88,8 +88,11 @@ def detect_unresolved_sources(
 
         mean, median, std = sigma_clipped_stats(err[mask], sigma=3.0,maxiters=None)
 
-        PSF_correction = correct_PSF(line)
-
+        try:
+            PSF_correction = correct_PSF(line)
+        except:
+            PSF_correction = 1
+        
         # initialize and run StarFinder (DAOPHOT or IRAF)
         finder = StarFinder(fwhm      = fwhm * oversize_PSF * PSF_correction, 
                             threshold = np.abs(threshold*median),

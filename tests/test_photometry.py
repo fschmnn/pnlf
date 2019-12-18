@@ -6,7 +6,8 @@ from astropy.stats import gaussian_fwhm_to_sigma
 
 from photutils import aperture_photometry, CircularAperture
 
-from pymuse.photometry import growth_curve, light_in_aperture
+from pymuse.photometry import growth_curve
+from pymuse.auxiliary import light_in_gaussian
 
 
 def test_growth_curve():
@@ -23,7 +24,7 @@ def test_growth_curve():
     gaussian = models.Gaussian2D(x_mean=size/2,y_mean=size/2,x_stddev=std,y_stddev=std)
     img = gaussian(*np.indices((size,size)))
 
-    fwhm_fit = growth_curve(img,size/2,size/2,r_aperture=0.4*size)[0]
+    fwhm_fit = growth_curve(img,size/2,size/2,model='gaussian')[0]
 
     assert abs(fwhm-fwhm_fit)/fwhm < 0.05
 
@@ -51,6 +52,6 @@ def test_aperture_correction():
     aperture = CircularAperture((size/2,size/2),r=r)
     partial_flux = aperture_photometry(img,aperture)[0]['aperture_sum']
 
-    corrected_flux =  partial_flux / light_in_aperture(r,fwhm)
+    corrected_flux =  partial_flux / light_in_gaussian(r,fwhm)
 
     assert abs(corrected_flux-total_flux) / total_flux < 0.05

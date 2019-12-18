@@ -1,7 +1,50 @@
 import numpy as np
+from scipy.special import hyp2f1
 
 
 correct_PSF = lambda lam: 1- 4.7e-5*(int(lam[-4:])-6450)
+
+def fwhm_moffat(alpha,gamma):
+    '''calculate the FWHM of a Moffat'''
+
+    return 2*gamma * np.sqrt(2**(1/alpha)-1) 
+
+def light_in_moffat(x,alpha,gamma):
+    '''theoretical growth curve for a moffat PSF
+
+    f(x;alpha,gamma) ~ [1+r^2/gamma^2]^-alpha
+
+    Parameters
+    ----------
+    x : float
+        Radius of the aperture in units of pixel
+    '''
+
+    return 1-(1+x**2/gamma**2)**(1-alpha)
+
+def light_in_gaussian(x,fwhm):
+    '''theoretical growth curve for a gaussian PSF
+
+    Parameters
+    ----------
+    x : float
+        Radius of the aperture in units of pixel
+
+    fwhm : float
+        FWHM of the Gaussian in units of pixel
+    '''
+
+    return 1-np.exp(-4*np.log(2)*x**2 / fwhm**2)
+
+
+
+def light_in_moffat_old(x,alpha,gamma):
+    '''
+    without r from rdr one gets an hpyerfunction ...
+    '''
+    r_inf = 105
+    f_inf = r_inf*hyp2f1(1/2,alpha,3/2,-r_inf**2/gamma**2)
+    return x*hyp2f1(1/2,alpha,3/2,-x**2/gamma**2) / f_inf
 
 
 def test_convergence(array,length=4,threshold=0.05):

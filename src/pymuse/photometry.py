@@ -17,10 +17,10 @@ from photutils import CircularAnnulus          # define annulus
 from photutils import aperture_photometry      # measure flux in aperture
 
 import scipy.optimize as optimization          # fit Gaussian to growth curve
-from scipy.special import hyp2f1
 
 from .io import ReadLineMaps
-from .auxiliary import correct_PSF, test_convergence
+from .auxiliary import correct_PSF, test_convergence, \
+                      light_in_gaussian, light_in_moffat, fwhm_moffat
 
 basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
@@ -248,7 +248,7 @@ def growth_curve(data,x,y,model,rmax=30,plot=False):
         fit,sig = optimization.curve_fit(func, radius,flux , guess)
         alpha, gamma = fit[0], fit[1]
         fwhm = 2*gamma * np.sqrt(2**(1/alpha)-1)
-        print(f'alpha={alpha:.2f}, gamma={gamma:.2f}, fwhm={fwhm:.2f}')
+        #print(f'alpha={alpha:.2f}, gamma={gamma:.2f}, fwhm={fwhm:.2f}')
 
 
     elif model == 'gaussian':
@@ -261,55 +261,15 @@ def growth_curve(data,x,y,model,rmax=30,plot=False):
 
     
     if plot:
-        plt.plot(radius,flux,label='observed')
-        plt.plot(radius,func(radius,*fit),label='fit',ls='--')
+        p = plt.plot(radius,flux,label='observed')
+        plt.plot(radius,func(radius,*fit),label='fit',ls='--',color=p[0].get_color())
 
         plt.xlabel('radius in px')
         plt.ylabel('light in aperture')
-        plt.legend()
+        #plt.legend()
         plt.grid()
 
     return fit
 
 
-def fwhm_moffat(alpha,gamma):
-    '''calculate the FWHM of a Moffat'''
 
-    return 2*gamma * np.sqrt(2**(1/alpha)-1) 
-
-def light_in_moffat(x,alpha,gamma):
-    '''theoretical growth curve for a moffat PSF
-
-    f(x;alpha,gamma) ~ [1+r^2/gamma^2]^-alpha
-
-    Parameters
-    ----------
-    x : float
-        Radius of the aperture in units of pixel
-    '''
-
-    return 1-(1+x**2/gamma**2)**(1-alpha)
-
-def light_in_gaussian(x,fwhm):
-    '''theoretical growth curve for a gaussian PSF
-
-    Parameters
-    ----------
-    x : float
-        Radius of the aperture in units of pixel
-
-    fwhm : float
-        FWHM of the Gaussian in units of pixel
-    '''
-
-    return 1-np.exp(-4*np.log(2)*x**2 / fwhm**2)
-
-
-
-def light_in_moffat_old(x,alpha,gamma):
-    '''
-    without r from rdr one gets an hpyerfunction ...
-    '''
-    r_inf = 100
-    f_inf = r_inf*hyp2f1(1/2,alpha,3/2,-r_inf**2/gamma**2)
-    return x*hyp2f1(1/2,alpha,3/2,-x**2/gamma**2) / f_inf
