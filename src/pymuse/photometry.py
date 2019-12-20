@@ -16,6 +16,9 @@ from photutils import CircularAperture         # define circular aperture
 from photutils import CircularAnnulus          # define annulus
 from photutils import aperture_photometry      # measure flux in aperture
 
+from astropy.stats import SigmaClip
+from photutils import Background2D, MedianBackground, MMMBackground, SExtractorBackground
+
 import scipy.optimize as optimization          # fit Gaussian to growth curve
 
 from .io import ReadLineMaps
@@ -26,7 +29,7 @@ basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
 
 
-def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
+def measure_flux(self,peak_tbl,lines=None,aperture_size=1.5,oversize_PSF=1.0):
     '''
     measure flux for all lines in lines
     
@@ -63,13 +66,8 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
         missing = set(lines) - set(self.lines)
         if missing:
             raise AttributeError(f'{self.name} has no attribute {", ".join(missing)}')
-    
-    if not hasattr(self,'peaks_tbl'):
-        raise AttributeError(f'run `detect_unresolved_sources` to find sources first')
-    else:
-        sources = getattr(self,'peaks_tbl')
-        
-    logger.info(f'measuring fluxes in {self.name} for {len(sources)} sources')    
+            
+    logger.info(f'measuring fluxes in {self.name} for {len(peak_tbl)} sources')    
     
     out = {}
     # we need to do this for each line
@@ -84,28 +82,37 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
 
         PSF_correction = correct_PSF(line)
         
-        for fwhm in np.unique(sources['fwhm']):
 
-            source_part = sources[sources['fwhm']==fwhm]
+        sigma_clip = SigmaClip(sigma=3.,maxiters=None)
+        bkg_estimator = SExtractorBackground()
+        mask = np.isnan(data)
+
+        bkg = Background2D(data, (13, 14), 
+                        filter_size=(8, 8),
+                        sigma_clip=sigma_clip, 
+                        bkg_estimator=bkg_estimator,
+                        mask=mask).background
+        bkg[mask] = np.nan
+
+        for fwhm in np.unique(peak_tbl['fwhm']):
+
+            source_part = peak_tbl[peak_tbl['fwhm']==fwhm]
             positions = np.transpose((source_part['x'], source_part['y']))
 
-            alpha = 3
+            alpha = 3.898
             gamma = fwhm * PSF_correction / (2*np.sqrt(2**(1/alpha)-1))
 
-            # define size of aperture and annulus and create a mask for them
-            if False: #line == 'OIII5006':
-                r =  3 * fwhm / 2 * oversize_PSF * PSF_correction 
-            else:
-                r = aperture_size * fwhm / 2 * oversize_PSF * PSF_correction 
+            r = aperture_size * fwhm / 2 * oversize_PSF * PSF_correction 
             
-            r_in  = 3. * fwhm / 2 * oversize_PSF * PSF_correction
-            r_out = np.sqrt(3*r**2+r_in**2)
+            r_in  = 3 * fwhm / 2 * oversize_PSF * PSF_correction
+            r_out = 3*np.sqrt(3*r**2+r_in**2)
 
             aperture = CircularAperture(positions, r=r)
             annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
             annulus_masks = annulus_aperture.to_mask(method='center')
             
             # for each source we calcualte the background individually 
+            '''
             bkg_median = []
             for mask in annulus_masks:
                 # select the pixels inside the annulus and calulate sigma clipped median
@@ -113,16 +120,17 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
                 annulus_data_1d = annulus_data[mask.data > 0]
                 _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],maxiters=None)          
                 bkg_median.append(median_sigclip)
-            
-            phot = aperture_photometry(data, 
+            '''
+
+            phot = aperture_photometry(data-bkg, 
                                        aperture, 
                                        error = error,
                                       )
 
             # save bkg_median in case we need it again
-            phot['bkg_median'] = np.array(bkg_median) 
+            #phot['bkg_median'] = np.array(bkg_median) 
             # multiply background with size of the aperture
-            phot['aperture_bkg'] = phot['bkg_median'] * aperture.area
+            #phot['aperture_bkg'] = phot['bkg_median'] * aperture.area
 
             # calculate the average of the velocity dispersion
             aperture = CircularAperture(positions, r=fwhm)
@@ -133,7 +141,7 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
             if line == 'OIII5006_DAP':
                 phot['flux'] = phot['aperture_sum']
             else:
-                phot['flux'] = phot['aperture_sum'] - phot['aperture_bkg']
+                phot['flux'] = phot['aperture_sum'] #- phot['aperture_bkg']
                 
             # correct for flux that is lost outside of the aperture
             phot['flux'] /= light_in_moffat(r,alpha,gamma)
@@ -166,10 +174,10 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
 
         flux[k] = v['flux']
         flux[f'{k}_apsum'] = v['aperture_sum']
-        flux[f'{k}_apbkg'] = v['aperture_bkg']
+        #flux[f'{k}_apbkg'] = v['aperture_bkg']
 
         flux[f'{k}_err'] = v['aperture_sum_err']
-        flux[f'{k}_bkg'] = v['bkg_median']
+        #flux[f'{k}_bkg'] = v['bkg_median']
         flux[f'{k}_SIGMA'] = v['SIGMA']
 
     flux.rename_column('xcenter','x')
@@ -182,7 +190,7 @@ def measure_flux(self,lines=None,aperture_size=1.5,oversize_PSF=1.0):
     return flux
 
 
-def growth_curve(data,x,y,model,rmax=30,plot=False):
+def growth_curve(data,x,y,model,rmax=30,plot=False,**kwargs):
     '''do a growth curve analysis on the given star
     
     measure the amount of light as a function of radius and tries
@@ -218,10 +226,10 @@ def growth_curve(data,x,y,model,rmax=30,plot=False):
     radius = []
     flux   = []
 
-    r = 1
+    r = 0.5
     while True:
         if r > rmax:
-            #logger.warning(f'no convergence within a radius of {rmax}')
+            logger.warning(f'no convergence within a radius of {rmax}')
             break
 
         aperture = CircularAperture((x,y), r=r)
@@ -229,10 +237,10 @@ def growth_curve(data,x,y,model,rmax=30,plot=False):
         flux.append(phot['aperture_sum'][0]-aperture.area*bkg_median)
         radius.append(r)
 
-        if test_convergence(flux):
+        if test_convergence(flux,**kwargs):
             break
         
-        r += 1
+        r += 0.5
 
     radius = np.array(radius)
     flux = np.array(flux)   
