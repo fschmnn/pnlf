@@ -29,7 +29,7 @@ basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
 
 
-def measure_flux(self,peak_tbl,lines=None,aperture_size=1.5,oversize_PSF=1.0):
+def measure_flux(self,peak_tbl,lines=None,aperture_size=1.5,background='local'):
     '''
     measure flux for all lines in lines
     
@@ -44,6 +44,9 @@ def measure_flux(self,peak_tbl,lines=None,aperture_size=1.5,oversize_PSF=1.0):
     
     aperture_size : float
        size of the aperture in multiples of the fwhm
+
+    background : string
+        `local` (default) or `global`
     '''
 
     #del self.peaks_tbl['SkyCoord']
@@ -55,6 +58,9 @@ def measure_flux(self,peak_tbl,lines=None,aperture_size=1.5,oversize_PSF=1.0):
     if not isinstance(self,ReadLineMaps):
         raise TypeError('input must be of type ReadLineMaps')
     
+    if background not in ['global','local',None]:
+        raise TypeError(f'unknown Background estimation: {background}')
+
     # if no line is specified, we measure the flux in all line maps
     if not lines:
         lines = self.lines
@@ -81,18 +87,21 @@ def measure_flux(self,peak_tbl,lines=None,aperture_size=1.5,oversize_PSF=1.0):
         v_disp = np.sqrt(getattr(self,f'{line}_SIGMA')**2 - getattr(self,f'{line}_SIGMA_CORR')**2)
 
         PSF_correction = correct_PSF(line)
-        
+    
+        if background == 'global':
+            # for the global background subtraction we estimate a background
+            # image and subtract it from the data
+            sigma_clip = SigmaClip(sigma=3.,maxiters=None)
+            bkg_estimator = SExtractorBackground()
+            mask = np.isnan(data)
 
-        sigma_clip = SigmaClip(sigma=3.,maxiters=None)
-        bkg_estimator = SExtractorBackground()
-        mask = np.isnan(data)
-
-        bkg = Background2D(data, (13, 14), 
-                        filter_size=(8, 8),
-                        sigma_clip=sigma_clip, 
-                        bkg_estimator=bkg_estimator,
-                        mask=mask).background
-        bkg[mask] = np.nan
+            bkg = Background2D(data, (13, 14), 
+                            filter_size=(5, 7),
+                            sigma_clip=sigma_clip, 
+                            bkg_estimator=bkg_estimator,
+                            mask=mask).background
+            bkg[mask] = np.nan
+            data -= bkg
 
         for fwhm in np.unique(peak_tbl['fwhm']):
 
@@ -102,47 +111,52 @@ def measure_flux(self,peak_tbl,lines=None,aperture_size=1.5,oversize_PSF=1.0):
             alpha = 3.898
             gamma = fwhm * PSF_correction / (2*np.sqrt(2**(1/alpha)-1))
 
-            r = aperture_size * fwhm / 2 * oversize_PSF * PSF_correction 
-            
-            r_in  = 3 * fwhm / 2 * oversize_PSF * PSF_correction
+            r = aperture_size * fwhm / 2 * PSF_correction 
+            r_in  = 3 * fwhm / 2  * PSF_correction
             r_out = 3*np.sqrt(3*r**2+r_in**2)
 
             aperture = CircularAperture(positions, r=r)
-            annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
-            annulus_masks = annulus_aperture.to_mask(method='center')
-            
-            # for each source we calcualte the background individually 
-            '''
-            bkg_median = []
-            for mask in annulus_masks:
-                # select the pixels inside the annulus and calulate sigma clipped median
-                annulus_data = mask.multiply(data)
-                annulus_data_1d = annulus_data[mask.data > 0]
-                _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],maxiters=None)          
-                bkg_median.append(median_sigclip)
-            '''
 
-            phot = aperture_photometry(data-bkg, 
+            # measure the flux for each source
+            phot = aperture_photometry(data, 
                                        aperture, 
                                        error = error,
                                       )
 
-            # save bkg_median in case we need it again
-            #phot['bkg_median'] = np.array(bkg_median) 
-            # multiply background with size of the aperture
-            #phot['aperture_bkg'] = phot['bkg_median'] * aperture.area
+            if background == 'local':
+                # the local background subtraction estimates the background for 
+                # each source individually 
+                annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
+                annulus_masks = annulus_aperture.to_mask(method='center')
+                
+                bkg_median = []
+                for mask in annulus_masks:
+                    # select the pixels inside the annulus and calulate sigma clipped median
+                    annulus_data = mask.multiply(data)
+                    annulus_data_1d = annulus_data[mask.data > 0]
+                    _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],maxiters=None)          
+                    bkg_median.append(median_sigclip)
+
+                # save bkg_median in case we need it again
+                phot['bkg_median'] = np.array(bkg_median) 
+                # multiply background with size of the aperture
+                phot['aperture_bkg'] = phot['bkg_median'] * aperture.area
+
+                # we don't subtract the background from OIII because there is none
+                if line == 'OIII5006_DAP':
+                    phot['flux'] = phot['aperture_sum']
+                else:
+                    phot['flux'] = phot['aperture_sum'] - phot['aperture_bkg']
+            
+            else:
+                # in case of the global background, bkg is already subtracted
+                phot['flux'] = phot['aperture_sum']
 
             # calculate the average of the velocity dispersion
             aperture = CircularAperture(positions, r=fwhm)
             SIGMA = aperture_photometry(v_disp,aperture)
             phot['SIGMA'] = SIGMA['aperture_sum'] / aperture.area
 
-            # we don't subtract the background from OIII because there is none
-            if line == 'OIII5006_DAP':
-                phot['flux'] = phot['aperture_sum']
-            else:
-                phot['flux'] = phot['aperture_sum'] #- phot['aperture_bkg']
-                
             # correct for flux that is lost outside of the aperture
             phot['flux'] /= light_in_moffat(r,alpha,gamma)
             
