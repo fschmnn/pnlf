@@ -130,7 +130,7 @@ def detect_unresolved_sources(
     peak_tbl['RaDec'] = peak_tbl['SkyCoord'].to_string(style='hmsdms',precision=2)
 
     # save the result to the object
-    setattr(self,'peaks_tbl',peak_tbl)
+    #setattr(self,'peaks_tbl',peak_tbl)
 
     # we save the found positions to a file
     if save:

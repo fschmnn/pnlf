@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from matplotlib.pyplot import figure, show
 
 from astropy.table import Table
 
@@ -13,6 +14,8 @@ from astropy.nddata import Cutout2D
 import random
 
 from photutils import CircularAperture         # define circular aperture
+
+from pymuse.analyse import PNLF
 
 def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
     '''plot line map with detected sources
@@ -41,7 +44,7 @@ def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
     else:
         apertures.append(CircularAperture(positions, r=4))
 
-    fig = plt.figure(figsize=(12,12))
+    fig = figure(figsize=(12,12))
     ax = fig.add_subplot(111, projection=wcs)
     vmax = np.nanpercentile(data,95)
     norm = simple_norm(data[~np.isnan(data)], 'log',max_percent=95.,clip=False)
@@ -102,7 +105,7 @@ def sample_cutouts(data,peaks_tbl,wcs,nrows=10,ncols=10,filename=None):
     #fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(20, 20),squeeze=True)
     #ax = ax.ravel()
     
-    fig = plt.figure(figsize=(100,100))
+    fig = figure(figsize=(100,100))
     
     # get an index idx from 0 to nrows*ncols and a random index i from 0 to len(stars)
     for idx,i in enumerate(random.sample(range(len(stars)), nrows*ncols)):
@@ -144,7 +147,7 @@ def single_cutout(self,extension,x,y,size=32):
     #fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(20, 20),squeeze=True)
     #ax = ax.ravel()
     
-    fig = plt.figure(figsize=(10,5))
+    fig = figure(figsize=(10,5))
     
     # get an index idx from 0 to nrows*ncols and a random index i from 0 to len(stars)
     ax1 = fig.add_subplot(1,2,1,projection=star.wcs)
@@ -198,4 +201,91 @@ def create_RGB(r,g,b,percentile=90):
     return rgb
     
 
+def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
+              filename=None,color='tab:red'):
+    '''Plot Planetary Nebula Luminosity Function
+    
+    
+    Parameters
+    ----------
+    data : ndarray
+        apparent magnitude of the individual nebulae.
+        
+    mu : float
+        distance modulus.
+        
+    completeness : float
+        maximum magnitude for which we can detect all objects.
+        
+    binsize : float
+        Size of the bins in magnitudes.
+        
+    mlow : float or None
+        Lower edge of the bins (the root of the PNLF if None)
+    
+    mhigh : float
+        Upper edge of the bins.
+    '''
+    
+    Mmax = -4.47
+    
+    # the fit is normalized to 1 -> multiply with number of objects
+    N = len(data[data<completeness])
+    if not mlow:
+        mlow = Mmax+mu
+    if not mhigh:
+        mhigh = completeness+2
+    
+    hist, bins  = np.histogram(data,np.arange(mlow,mhigh,binsize),normed=False)
+    err = np.sqrt(hist)
+    # midpoint of the bins is used as position for the plots
+    m = (bins[1:]+bins[:-1]) / 2
+    
+    # for the fit line we use a smaller binsize
+    binsize_fine = 0.05
+    bins_fine = np.arange(mlow,mhigh,binsize_fine)
+    m_fine = (bins_fine[1:]+bins_fine[:-1]) /2
+    
+    # create an empty figure
+    fig, (ax1,ax2) = plt.subplots(1,2,figsize=(8,4))
+
+    # scatter plot
+    ax1.errorbar(m[m<completeness],hist[m<completeness],yerr=err[m<completeness],
+                 marker='o',ms=6,mec=color,mfc=color,ls='none',ecolor=color)
+    ax1.errorbar(m[m>=completeness],hist[m>=completeness],yerr=err[m>completeness],
+                 marker='o',ms=6,mec=color,mfc='white',ls='none',ecolor=color)
+    ax1.plot(m_fine,binsize/binsize_fine*N*PNLF(bins_fine,mu=mu,mhigh=completeness),c=color,ls='dotted')
+    ax1.axvline(completeness,c='black',lw=0.2)
+    ax1.axvline(mu+Mmax,c='black',lw=0.2)
+
+    # adjust plot
+    ax1.set_yscale('log')
+    ax1.set_xlim([1.1*mlow-0.1*mhigh,mhigh])
+    ax1.set_ylim([0.8,1.5*np.max(hist)])
+    ax1.set_xlabel('$m_{[\mathrm{OIII}]}$ / mag')
+    ax1.set_ylabel('$N$')
+    
+    ax1.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.2g}'.format(y)))
+    ax1.xaxis.set_major_locator(mpl.ticker.MultipleLocator(1))
+    ax1.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.25))
+
+    # cumulative
+    ax2.scatter(m[m<completeness],np.cumsum(hist[m<completeness]),color=color)
+    ax2.plot(m,N*np.cumsum(PNLF(bins,mu=mu,mhigh=completeness)),ls='dotted',color=color)
+
+    
+    # adjust plot    
+    ax2.set_xlim([mlow,completeness])
+    ax2.set_ylim([-0.1*N,1.1*N])
+    ax2.set_xlabel(r'$m_{[\mathrm{OIII}]}$ / mag')
+    ax2.set_ylabel(r'Cumulative N')
+    
+    ax2.xaxis.set_major_locator(mpl.ticker.MultipleLocator(1.0))
+    ax2.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.25))
+    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.16g}'.format(y)))
+
+    plt.tight_layout()
+    if filename:
+        plt.savefig(filename)
+    plt.show()
     

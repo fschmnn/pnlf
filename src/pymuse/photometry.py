@@ -29,7 +29,7 @@ basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
 
 
-def measure_flux(self,peak_tbl,lines=None,aperture_size=1.5,background='local'):
+def measure_flux(self,peak_tbl,alpha,lines=None,aperture_size=1.5,background='local'):
     '''
     measure flux for all lines in lines
     
@@ -39,6 +39,12 @@ def measure_flux(self,peak_tbl,lines=None,aperture_size=1.5,background='local'):
     self : Galaxy
        Galaxy object with detected sources
     
+    peak_tbl : astropy table
+        Table with columns `x` and `y` (position of the sources)
+    
+    alpha : float
+        power index of the moffat
+
     lines : list
        list of lines that are measured
     
@@ -46,7 +52,7 @@ def measure_flux(self,peak_tbl,lines=None,aperture_size=1.5,background='local'):
        size of the aperture in multiples of the fwhm
 
     background : string
-        `local` (default) or `global`
+        `local` (default) or `global` or None
     '''
 
     #del self.peaks_tbl['SkyCoord']
@@ -54,6 +60,10 @@ def measure_flux(self,peak_tbl,lines=None,aperture_size=1.5,background='local'):
     # convertion factor from arcsec to pixel (used for the PSF)
     input_unit = 1e-20 * u.erg / u.cm**2 / u.s
     
+    '''
+    check the input parameters
+    '''
+
     # self must be of type Galaxy
     if not isinstance(self,ReadLineMaps):
         raise TypeError('input must be of type ReadLineMaps')
@@ -75,40 +85,50 @@ def measure_flux(self,peak_tbl,lines=None,aperture_size=1.5,background='local'):
             
     logger.info(f'measuring fluxes in {self.name} for {len(peak_tbl)} sources')    
     
+
+    '''
+    loop over all lines to measure the fluxes for all sources
+    '''
     out = {}
-    # we need to do this for each line
     for line in lines:
         
         logger.info(f'measuring fluxes in [{line}] line map')
         
-        # select data and error (copy in case we want to modify it)
+        # select data and error (copy in case we need to modify it)
         data  = getattr(self,f'{line}').copy()
         error = getattr(self,f'{line}_err').copy()
         v_disp = np.sqrt(getattr(self,f'{line}_SIGMA')**2 - getattr(self,f'{line}_SIGMA_CORR')**2)
 
+        # the fwhm varies slightly with wavelength
         PSF_correction = correct_PSF(line)
     
         if background == 'global':
-            # for the global background subtraction we estimate a background
-            # image and subtract it from the data
+            '''method global:
+            We create a background image by excluding sources (sigma clipped). 
+            The resulting background is then subtracted from the data.
+            '''
             sigma_clip = SigmaClip(sigma=3.,maxiters=None)
             bkg_estimator = SExtractorBackground()
             mask = np.isnan(data)
+            box_size = (40,40)
+            filter_size = (5,5)
 
-            bkg = Background2D(data, (13, 14), 
-                            filter_size=(5, 7),
+            bkg = Background2D(data, box_size, 
+                            filter_size=filter_size,
                             sigma_clip=sigma_clip, 
                             bkg_estimator=bkg_estimator,
                             mask=mask).background
             bkg[mask] = np.nan
             data -= bkg
 
+        '''
+        loop over the individual pointings (they have different fwhm)
+        '''
         for fwhm in np.unique(peak_tbl['fwhm']):
 
             source_part = peak_tbl[peak_tbl['fwhm']==fwhm]
             positions = np.transpose((source_part['x'], source_part['y']))
 
-            alpha = 3.898
             gamma = fwhm * PSF_correction / (2*np.sqrt(2**(1/alpha)-1))
 
             r = aperture_size * fwhm / 2 * PSF_correction 

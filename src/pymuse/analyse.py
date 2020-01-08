@@ -95,50 +95,6 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
     
     return table
 
-def PNLF(m,mu,completeness,truncate=False):
-    '''Planetary Nebula Luminosity Function (PNLF)
-    
-    N(m) ~ e^0.307(m-mu) * (1-e^3(Mmax-m+mu))
-    
-    The normalization is calculated by integrating from Mmax+mu
-    (the root of the function) to the specified completeness. 
-    Objects that lie outside this intervall are ignored.
-
-    Parameters
-    ----------
-    m : ndarray
-        apparent magnitudes of the PNs
-        
-    mu : float
-        distance modulus
-
-    completeness : float
-        completeness level (magnitude of the faintest sources that
-        are consistently detected).
-
-    truncate : bool
-        mask the output based on completeness (required for MLE)
-    '''
-    
-    if not completeness:
-        raise ValueError('specify completeness')
-
-    Mmax = -4.47
-
-    m = np.atleast_1d(m)
-
-    if truncate:
-        m = m[(m<completeness)]
-
-    normalization = -3.62866*np.exp(0.307*Mmax) + 3.25733*np.exp(0.307*completeness-0.307*mu) + 0.371333 * np.exp(3*Mmax - 2.693 * completeness + 2.693 * mu)
-    
-    out = np.exp(0.307*(m-mu)) * (1-np.exp(3*(Mmax-m+mu))) / normalization
-    
-    out[(m>completeness) & (m<Mmax+mu)] = 0
-    
-    return out
-
-
 class MaximumLikelihood:
     '''
     
@@ -216,3 +172,78 @@ class MaximumLikelihood:
         return self.fit(guess)
         
 
+
+def f(m,mu,Mmax=-4.47):
+    '''luminosity function (=density)'''
+    
+    return np.exp(0.307*(m-mu)) * (1-np.exp(3*(Mmax-m+mu)))
+
+
+def F(m,mu,Mmax=-4.47):
+    '''indefinite integral of the luminosity function'''
+
+    #return np.exp(-0.307*mu) * (np.exp(0.307*m)/0.307 + np.exp(3*(Mmax-mu)-2.693*m) / 2.693)
+    return np.exp(0.307*(m-mu))/0.307 + np.exp(2.693*(mu-m)+3*Mmax)/2.693
+
+
+def pnlf(m,mu,mhigh,Mmax=-4.47):
+    '''Planetary Nebula Luminosity Function (PNLF)
+    
+    N(m) ~ e^0.307(m-mu) * (1-e^3(Mmax-m+mu))
+        
+    The normalization is calculated by integrating from Mmax+mu
+    (the root of the function) to the specified completeness. 
+    Objects that lie outside this intervall are ignored.
+
+    Parameters
+    ----------
+    m : ndarray
+        apparent magnitudes of the PNs
+        
+    mu : float
+        distance modulus
+
+    mhigh : float
+        completeness level (magnitude of the faintest sources that
+        are consistently detected). Required for normalization.
+    '''
+
+    m = np.atleast_1d(m)
+    mlow = Mmax+mu
+    
+    normalization = 1/(F(mhigh,mu) - F(mlow,mu))    
+    out = normalization * np.exp(0.307*(m-mu)) * (1-np.exp(3*(Mmax-m+mu)))
+    out[(m>mhigh) & (m<mlow)] = 0
+    
+    return out
+
+def PNLF(bins,mu,mhigh,Mmax=-4.47):
+    '''integrated Planetary Nebula Luminosity Function
+    
+    Parameters
+    ----------
+    
+    bins : ndarray
+        Defines a monotonically increasing array of bin edges.
+    
+    mu : float
+        Distance modulus
+        
+    mhigh : float
+        completness level (magnitude of the faintest sources that
+        are consistently detected). Required for normalization.
+    
+    Mmax : float
+        Magnitude of the brightest PN.
+    '''
+    
+    mlow = mu+Mmax
+
+    lower = bins[:-1]
+    upper = bins[1:]
+    
+    normalization = 1/(F(mhigh,mu,Mmax=Mmax)-F(mlow,mu,Mmax=Mmax))
+    #out = normalization * (np.exp(2.693*mu + 3.*Mmax) * (-0.371333/np.exp(2.693*lower)) + 0.371333/np.exp(2.693*upper)) + (-3.25733*np.exp(0.307*lower) + 3.25733*np.exp(0.307*upper))/np.exp(0.307*mu)
+    out = normalization * (F(upper,mu,Mmax=Mmax) - F(lower,mu,Mmax=Mmax))
+    out[out<0] = 0
+    return out
