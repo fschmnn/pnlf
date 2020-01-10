@@ -15,7 +15,7 @@ import random
 
 from photutils import CircularAperture         # define circular aperture
 
-from pymuse.analyse import PNLF
+from ..analyse import PNLF
 
 def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
     '''plot line map with detected sources

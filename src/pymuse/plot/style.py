@@ -56,7 +56,7 @@ def newfig(scale=1,ratio=None):
     # we using jupyter this is required to close open plots
     #plt.clf()
     if not final:
-        scale*=3
+        scale*=2
 
     size = figsize(scale)
     if not ratio:

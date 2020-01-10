@@ -97,6 +97,9 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
 
 class MaximumLikelihood:
     '''
+
+    for uncertainties 
+    https://erikbern.com/2018/10/08/the-hackers-guide-to-uncertainty-estimates.html
     
     Parameters
     ----------
@@ -152,6 +155,17 @@ class MaximumLikelihood:
         self.dx = np.zeros((len(self.x),2))
         if np.any(self.err):
             
+            B = 500
+            #bootstrapping
+            result_bootstrap = np.zeros((B,len(self.x)))
+            for i in range(B):
+                sample = np.random.normal(self.data,self.err)
+                result_bootstrap[i,:] = minimize(self._loglike,guess,args=(sample),method=self.method).x
+            err_boot = np.sqrt(np.sum((result_bootstrap-self.x)**2,axis=0)/B)
+            self.dx[:,0] = err_boot 
+            self.dx[:,1] = err_boot  
+        
+            '''
             self.result_m = minimize(self._loglike,guess,args=(self.data-self.err),method=self.method)
             self.result_p = minimize(self._loglike,guess,args=(self.data+self.err),method=self.method)
 
@@ -160,6 +174,18 @@ class MaximumLikelihood:
             
             self.dx[:,0] = self.x - self.result_m.x
             self.dx[:,1] = self.result_p.x - self.x
+            '''
+
+        else:
+            B = 500
+            #bootstrapping
+            result_bootstrap = np.zeros((B,len(self.x)))
+            for i in range(B):
+                sample = np.random.choice(self.data,len(self.data))
+                result_bootstrap[i,:] = minimize(self._loglike,guess,args=(sample),method=self.method).x
+            err_boot = np.sqrt(np.sum((result_bootstrap-self.x)**2,axis=0)/B)
+            self.dx[:,0] = err_boot 
+            self.dx[:,1] = err_boot  
 
         for name,_x,_dx in zip(list(signature(self.func).parameters)[1:],self.x,self.dx):
             print(f'{name} = {_x:.3f} + {_dx[1]:.3f} - {_dx[0]:.3f} ')

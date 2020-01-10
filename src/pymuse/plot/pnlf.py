@@ -1,4 +1,4 @@
-from .style import figsize, newfig 
+from .style import figsize, newfig, final
 
 from pathlib import Path
 import numpy as np
@@ -55,7 +55,7 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
     m_fine = (bins_fine[1:]+bins_fine[:-1]) /2
     
     # create an empty figure
-    fig = newfig(ratio=2)
+    fig = newfig(ratio=0.5)
     ax1 = fig.add_subplot(1,2,1)
     ax2 = fig.add_subplot(1,2,2)
 
@@ -94,12 +94,12 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
     ax2.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.25))
     ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.16g}'.format(y)))
 
+    plt.tight_layout()
+
     if filename:
         savefig(filename.with_suffix('.pgf'),bbox_inches='tight')
         savefig(filename.with_suffix('.pdf'),bbox_inches='tight')
 
-    else:
-        plt.tight_layout()
-    
-    plt.show()
+    if not final:
+        plt.show()
     

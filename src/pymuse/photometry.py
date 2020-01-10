@@ -132,9 +132,6 @@ def measure_flux(self,peak_tbl,alpha,lines=None,aperture_size=1.5,background='lo
             gamma = fwhm * PSF_correction / (2*np.sqrt(2**(1/alpha)-1))
 
             r = aperture_size * fwhm / 2 * PSF_correction 
-            r_in  = 3 * fwhm / 2  * PSF_correction
-            r_out = 3*np.sqrt(3*r**2+r_in**2)
-
             aperture = CircularAperture(positions, r=r)
 
             # measure the flux for each source
@@ -146,6 +143,10 @@ def measure_flux(self,peak_tbl,alpha,lines=None,aperture_size=1.5,background='lo
             if background == 'local':
                 # the local background subtraction estimates the background for 
                 # each source individually 
+                if aperture_size > 3:
+                    logger.warning('aperture > 3 FWHM')
+                r_in  = 3 * fwhm / 2  * PSF_correction
+                r_out = 3*np.sqrt(3*r**2+r_in**2)
                 annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
                 annulus_masks = annulus_aperture.to_mask(method='center')
                 
@@ -208,10 +209,9 @@ def measure_flux(self,peak_tbl,alpha,lines=None,aperture_size=1.5,background='lo
 
         flux[k] = v['flux']
         flux[f'{k}_apsum'] = v['aperture_sum']
-        #flux[f'{k}_apbkg'] = v['aperture_bkg']
-
+        flux[f'{k}_apbkg'] = v['aperture_bkg']
         flux[f'{k}_err'] = v['aperture_sum_err']
-        #flux[f'{k}_bkg'] = v['bkg_median']
+        flux[f'{k}_bkg'] = v['bkg_median']
         flux[f'{k}_SIGMA'] = v['SIGMA']
 
     flux.rename_column('xcenter','x')
