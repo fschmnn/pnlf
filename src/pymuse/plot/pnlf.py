@@ -97,7 +97,79 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
     plt.tight_layout()
 
     if filename:
-        savefig(filename.with_suffix('.pgf'),bbox_inches='tight')
+        #savefig(filename.with_suffix('.pgf'),bbox_inches='tight')
+        savefig(filename.with_suffix('.pdf'),bbox_inches='tight')
+
+    if not final:
+        plt.show()
+
+
+def plot_emission_line_ratio(table,mu,filename=None):
+    
+    
+    fig, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(10,5))
+    
+    style = {'SNR':{"marker":'o',"s":30,"edgecolors":'tab:red',"facecolors":'white'},
+             'HII':{"marker":'+',"s":50,"color":'black'},
+             'PN':{"marker":'o',"s":30,"color":'black'}
+            }
+
+    # ------------------------------------------------
+    # left plot [OIII]/Ha over mOIII
+    # ------------------------------------------------
+    mOIII = np.linspace(24,29)
+    OIII_Ha = 10**(-0.37*(mOIII-mu)-1.16)
+    ax1.plot(mOIII,OIII_Ha,c='black',lw=0.6)
+    
+
+    for t in ['HII','SNR','PN']:
+        tbl = table[table['type']==t]
+        ax1.scatter(tbl['mOIII'],tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),**style[t],label=t)
+    ax1.legend()
+    
+    ax1.set(xlim=[24,30],
+           ylim=[0.03,30],
+           yscale='log',
+           xlabel='m_OIII',
+           ylabel='OIII/Ha')
+    
+    ax1.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.16g}'.format(y)))
+
+    # ------------------------------------------------
+    # right plot Ha/[NII] over Ha/[SII]
+    # ------------------------------------------------
+    #mOIII = np.linspace(24,29)
+    #mu = 29.91
+    #OIII_Ha = 10**(-0.37*(mOIII-mu)-1.16)
+    #ax1.plot(mOIII,OIII_Ha)
+    
+    for t in ['HII','SNR','PN']:
+        tbl = table[table['type']==t]
+        ax2.scatter(np.log10(tbl['HA6562']/tbl['SII6716']),
+                    np.log10(tbl['HA6562']/tbl['NII6583']),**style[t],label=t)
+    ax2.legend()
+    
+    vert_SNR = np.array([[-0.1,-0.5],[-0.1,0.05],[0.3,0.25],[0.3,0.05],[0.1,-0.05],[0.1,-0.5]])
+    ax2.add_patch(mpl.patches.Polygon(vert_SNR,Fill=False,edgecolor='black'))
+    vert_SNR = np.array([[0.5,0.2],[0.5,0.7],[0.9,0.7],[0.9,0.2]])
+    ax2.add_patch(mpl.patches.Polygon(vert_SNR,Fill=False,edgecolor='black'))
+    ax2.plot([0.1,1.3],[-0.45,0.8],c='black',lw=0.6)
+    ax2.text(-0.1,-0.6,'SNR')
+    
+    ax2.set(xlim=[-1,1.5],
+           ylim=[-1,1],
+           #yscale='log',
+           xlabel=r'Log (H$\alpha$ / [SII])',
+           ylabel=r'Log (H$\alpha$ / [NII])')    
+    ax2.xaxis.set_major_locator(mpl.ticker.MultipleLocator(0.5))
+    ax2.yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.5))
+    ax2.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.1))
+    ax2.yaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.1))    
+
+    plt.tight_layout()
+
+    if filename:
+        #savefig(filename.with_suffix('.pgf'),bbox_inches='tight')
         savefig(filename.with_suffix('.pdf'),bbox_inches='tight')
 
     if not final:

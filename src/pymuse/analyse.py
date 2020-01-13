@@ -9,6 +9,38 @@ from inspect import signature
 
 logger = logging.getLogger(__name__)
 
+class Distance:
+    def __init__(self,value,unit):
+        '''save distance in 
+
+        '''
+
+        if unit == 'cm':
+            self.value = value
+        elif unit == 'm':
+            self.value = value * 100
+        elif unit in {'pc','parsec'}:
+            self.value = value * 3.085678e18
+        elif unit in {'ly','lightyear'}:
+            self.value = value * 9.460730472e17
+        elif unit in {'mag','distance_modulus','mu'}:
+            self.value = 10**(1+value/5) *  3.085678e18 
+        else:
+            raise ValueError(f'unkown unit: {unit}')
+
+    def to_cm(self):
+        return self.value
+
+    def to_parsec(self):
+        return self.value / 3.085678e18 
+
+    def to_lightyear(self):
+        return self.value / 9.460730472e17
+
+    def to_distance_modulus(self):
+        return 5*np.log10(self.value/3.085678e18 ) - 5
+
+
 
 def emission_line_diagnostics(table,distance_modulus,completeness_limit):
     '''Classify objects based on their emission lines 
