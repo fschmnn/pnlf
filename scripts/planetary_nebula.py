@@ -13,16 +13,18 @@ import json
 import numpy as np 
 import matplotlib.pyplot as plt 
 
-from astropy.io import ascii
+from astropy.io import ascii, fits
+from astropy.table import Table
 from astropy.coordinates import SkyCoord  
 from photutils import DAOStarFinder
 
 from extinction import ccm89
 
+from pymuse.auxiliary import search_table
 from pymuse.io import ReadLineMaps
 from pymuse.detection import detect_unresolved_sources, completeness_limit
 from pymuse.photometry import measure_flux
-from pymuse.analyse import emission_line_diagnostics, MaximumLikelihood, pnlf
+from pymuse.analyse import emission_line_diagnostics, MaximumLikelihood, pnlf, Distance
 from pymuse.plot.pnlf import plot_emission_line_ratio, plot_pnlf
 
 logging.basicConfig(#filename='log.txt',
@@ -32,10 +34,21 @@ logging.basicConfig(#filename='log.txt',
                     level=logging.INFO)
 
 logger = logging.getLogger(__name__)
+basedir = Path('..')
 
 # we save 
-with open(Path('..') / 'data' / 'interim' / 'parameters.json') as json_file:
+with open(basedir / 'data' / 'interim' / 'parameters.json') as json_file:
     parameters = json.load(json_file)
+
+with fits.open(basedir / 'data' / 'raw' / 'phangs_sample_table_v1p4.fits') as hdul:
+    sample_table = Table(hdul[1].data)
+
+for name in parameters.keys():
+    tmp = search_table(sample_table,name)
+    if tmp:
+        d = Distance(tmp['DIST'][0]*1e6,'pc').to_distance_modulus()
+        parameters[name]["mu"] = d
+print('using mu from sample table')
 
 '''
 IC5332    NGC1087    NGC1365    NGC1512    NGC1566    NGC1672    NGC2835   
@@ -45,7 +58,7 @@ NGC3351   NGC3627    NGC4254    NGC4535    NGC5068    NGC628
 data_raw = Path('d:\downloads\MUSEDAP')
 basedir = Path('..')
 
-for name in ['IC5332']:
+for name in parameters.keys():
 
     '''
     Step 1: Read in the data
@@ -124,4 +137,4 @@ for name in ['IC5332']:
     filename = basedir / 'reports' / 'figures' / f'{galaxy.name}_PNLF'
     plot_pnlf(tbl[tbl['type']=='PN']['mOIII'],mu,galaxy.completeness_limit,binsize=0.25,mhigh=32,filename=filename)
 
-    print(f'done with {galaxy.name}')
+    print(f'{galaxy.name}: {mu:.2f} vs {parameters[galaxy.name]["mu"]:.2f}')

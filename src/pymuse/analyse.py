@@ -1,10 +1,11 @@
 import logging              # use instead of print for more control
 from pathlib import Path    # filesystem related stuff
 import numpy as np          # numerical computations
+from matplotlib.pyplot import figure
 
 from astropy.table import Table
 
-from scipy.optimize import minimize, curve_fit
+from scipy.optimize import minimize
 from inspect import signature
 
 logger = logging.getLogger(__name__)
@@ -85,45 +86,50 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
         raise KeyError(f'input table is missing {", ".join(missing)}')
     del missing
        
-    # otherwise we modify the input table
+    # we don't want to modift the input table
     table = table.copy()
-                       
-    # calculate the absolute magnitude based on a first estimate of the distance modulus 
-    table['MOIII'] = table['mOIII'] - distance_modulus
+
+    logger.info(f'{len(table)} entries in initial catalogue')
+
     # make sure that the new column can save strings with 3 characters
     table['type'] = np.empty(len(table),dtype='U3')
     table['type'][:] = 'PN'
                        
     # if the flux is smaller than the error we set it to the error
-    for line in ['OIII5006','HA6562','NII6583','SII6716']:
-        mask = table[line]<table[f'{line}_err']
-        #print(f'{line}: {np.sum(mask)} values replaced')
-        table[line][np.where(mask)] = table[f'{line}_err'][np.where(mask)]
-                       
-    logger.info(f'{len(table)} entries in initial catalogue')
-                       
-    table['type'][np.where(4 < np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])))] = ''
-    table['type'][np.where(np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])) < -0.37*table['MOIII'] - 1.16)] = 'HII'
-    table['type'][np.where(table['HA6562'] / table['SII6716'] < 2.5)] = 'SNR'
+    for col in ['OIII5006','HA6562','NII6583','SII6716']:
+        detection = (table[col]>0) & (table[col]/table[f'{col}_err']>3)
+        logger.info(f'{np.sum(~detection)} not detected in {col}')
+        table[col][np.where(~detection)] = table[f'{col}_err'][np.where(~detection)] 
+        table[f'{col}_detection'] = detection
+
+    # calculate the absolute magnitude based on a first estimate of the distance modulus 
+    table['MOIII'] = table['mOIII'] - distance_modulus
+
+    # define criterias to exclude non PN objects
+    criteria = {}
+    criteria[''] = 4 < np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583']))
+    criteria['HII'] = (np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])) < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'])
+    criteria['SNR'] = (table['HA6562'] / table['SII6716'] < 2.5) & (table['HA6562_detection'] | table['SII6716_detection']) 
+
+    for k in criteria.keys():
+        table['type'][np.where(criteria[k])] = k
 
     # remove rows with NaN values in some columns
     mask =  np.ones(len(table), dtype=bool)
     for col in required:
         mask &=  ~np.isnan(table[col])
-    table['type'][np.where(mask==False)] = 'NaN'
+    table['type'][np.where(~mask)] = 'NaN'
     #table = table[mask]
-    logger.info(f'{len(mask[mask==False])} rows contain NaN values')
+    logger.info(f'{np.sum(~mask)} rows contain NaN values')
 
+    # purely for information
     mask = table['mOIII']< completeness_limit
-    #table['type'][np.where(mask==False)] = 'cl'
-    #table = table[mask]
-    logger.info(f'{len(mask[mask==False])} objects below the completness limit')    
-
+    logger.info(f'{np.sum(~mask)} objects below the completness limit')    
 
     logger.info(f'{len(table[table["type"]==""])} objects classified as 4<log [OIII]/Ha')
     logger.info(f'{len(table[table["type"]=="HII"])} objects classified as HII')
     logger.info(f'{len(table[table["type"]=="SNR"])} objects classified as SNR')
-    logger.info(f'{len(table[table["type"]=="PN"])} possible planetary nebula found')
+    logger.info(f'{len(table[table["type"]=="PN"])} objects classified as PN')
     
     return table
 
@@ -153,7 +159,7 @@ class MaximumLikelihood:
        additional fixed key word arguments that are passed to func.
     '''
     
-    def __init__(self,func,data,err=None,method='Nelder-Mead',**kwargs):
+    def __init__(self,func,data,err=None,prior=None,method='Nelder-Mead',**kwargs):
         
         if len(signature(func).parameters)-len(kwargs)<2:
             raise ValueError(f'`func` must have at least one free argument')
@@ -161,8 +167,14 @@ class MaximumLikelihood:
 
         self.data   = data
         self.err    = err
+        if prior:
+            self.prior = prior
         self.method = method
         self.kwargs = kwargs
+
+    def prior(*args):
+        '''uniform prior'''
+        return 1
 
     def _loglike(self,params,data):
         '''calculate the log liklihood of the given parameters
@@ -172,7 +184,7 @@ class MaximumLikelihood:
         were initially passed to the class, they are also passed to the
         function
         '''
-        return -np.sum(np.log(self.func(data,*params,**self.kwargs)))
+        return -np.sum(np.log(self.func(data,*params,**self.kwargs))) - len(data)*np.log(self.prior(*params))
 
     def fit(self,guess):
         '''use scipy minimize to find the best parameters'''
@@ -223,6 +235,18 @@ class MaximumLikelihood:
             print(f'{name} = {_x:.3f} + {_dx[1]:.3f} - {_dx[0]:.3f} ')
 
         return self.x
+
+    def plot(self,limits):
+        '''plot the likelihood'''
+        
+        x = np.linspace(*limits)
+        y = [-self._loglike([_],self.data) for _ in x]
+
+        fig = figure()
+        ax  = fig.add_subplot()
+
+        ax.plot(x,y)
+        ax.set_label('log likelihood')
 
     def __call__(self,guess):
         '''use scipy minimize to find the best parameters'''

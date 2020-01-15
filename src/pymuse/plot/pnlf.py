@@ -148,7 +148,8 @@ def plot_emission_line_ratio(table,mu,filename=None):
         ax2.scatter(np.log10(tbl['HA6562']/tbl['SII6716']),
                     np.log10(tbl['HA6562']/tbl['NII6583']),**style[t],label=t)
     ax2.legend()
-    
+
+    ax2.axvline(np.log10(2.5),c='black',lw=0.6) 
     vert_SNR = np.array([[-0.1,-0.5],[-0.1,0.05],[0.3,0.25],[0.3,0.05],[0.1,-0.05],[0.1,-0.5]])
     ax2.add_patch(mpl.patches.Polygon(vert_SNR,Fill=False,edgecolor='black'))
     vert_SNR = np.array([[0.5,0.2],[0.5,0.7],[0.9,0.7],[0.9,0.2]])

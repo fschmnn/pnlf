@@ -2,6 +2,20 @@
 
 A Python package to manipulate, analyze and plot MUSE data. The name is preliminary and will be changed later to avoid confusion with the existing [PyMUSE](https://github.com/ismaelpessa/PyMUSE) package.
 
+## ToDo
+
+
+
+* [ ] Prior distances from NED/NASA
+
+* [ ] reiterate classification/fit until it converges  
+
+* [ ] Bayes approach for MLE
+
+  
+
+
+
 ## Description
 
 For my PhD thesis I'm using spectroscopic data from the [Multi Unit Spectroscopic Explorer](https://www.eso.org/sci/facilities/develop/instruments/muse.html) (MUSE) instrument of the VLT. This data has been observed as part of the [PHANGS](https://sites.google.com/view/phangs/home) collaboration. 

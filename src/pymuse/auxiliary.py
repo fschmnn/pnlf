@@ -2,6 +2,15 @@ import numpy as np
 from scipy.special import hyp2f1
 
 
+def search_table(table,string):
+    
+    mask = np.zeros(len(table),dtype=bool)
+    
+    for i, row in enumerate(table):
+        if string in ','.join(map(str,row)):
+            mask[i]= True
+    return  table[mask]
+
 correct_PSF = lambda lam: 1- 4.7e-5*(int(lam[-4:])-6450)
 
 def fwhm_moffat(alpha,gamma):

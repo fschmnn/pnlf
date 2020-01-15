@@ -1,4 +1,5 @@
 import logging              # use instead of print for more control
+import inspect              # get signature of functions (e.g. to pass kwargs)
 from pathlib import Path    # filesystem related stuff
 import numpy as np          # numerical computations
 
@@ -23,10 +24,6 @@ from photutils.datasets import make_gaussian_sources_image    # create table wit
 from .io import ReadLineMaps
 from .auxiliary import correct_PSF
 
-_roundness   = 0.8
-_sharpnesslo = 0.1
-_sharpnesshi = 0.9
-
 basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
 
@@ -38,8 +35,8 @@ def detect_unresolved_sources(
     line : list,
     StarFinder,
     threshold : float=5.,
-    oversize_PSF : float=1.,
-    save=False
+    save=False,
+    **kwargs
     ) -> Table:
     '''detect unresolved sources in a ReadLineMaps object
     
@@ -59,11 +56,19 @@ def detect_unresolved_sources(
 
     save : bool
         save the result is to a file in `reports/catalogues/`
+
+    kwargs : dict
+        other parameters are passed to StarFinder
     '''
     
     if not isinstance(self,ReadLineMaps):
         raise TypeError('input must be of type ReadLineMaps')
     
+    daoargs = {k:kwargs.pop(k) for k in dict(kwargs) if k in inspect.signature(DAOStarFinder).parameters.keys()}
+
+    for k,v in kwargs.items():
+        logger.warning(f'unused kwargs: {k}={v}')
+
     # for convenience only, to make accessing the data easier
     data = getattr(self,line)
     err  = getattr(self,f'{line}_err')
@@ -94,12 +99,9 @@ def detect_unresolved_sources(
             PSF_correction = 1
         
         # initialize and run StarFinder (DAOPHOT or IRAF)
-        finder = StarFinder(fwhm      = fwhm * oversize_PSF * PSF_correction, 
+        finder = StarFinder(fwhm      = fwhm * PSF_correction, 
                             threshold = np.abs(threshold*median),
-                            sharplo   = _sharpnesslo, 
-                            sharphi   = _sharpnesshi,
-                            roundlo   = -_roundness,
-                            roundhi   = _roundness)
+                            **daoargs)
         peaks_part = finder(data, mask=~mask)
             
         # save fwhm in an additional column
@@ -189,7 +191,7 @@ def completeness_limit(
     threshold,
     stars_per_mag=10,
     iterations=1,
-    oversize_PSF=1
+    **kwargs
     ): 
     '''determine completness limit 
 
@@ -209,6 +211,11 @@ def completeness_limit(
     Table
     '''
 
+    daoargs = {k:kwargs.pop(k) for k in dict(kwargs) if k in inspect.signature(DAOStarFinder).parameters.keys()}
+
+    for k,v in kwargs.items():
+        logger.warning(f'unused kwargs: {k}={v}')
+
     data = getattr(self,line).copy()
     err  = getattr(self,f'{line}_err').copy()
     PSF  = getattr(self,'PSF')
@@ -220,6 +227,11 @@ def completeness_limit(
     apparent_magnitude = np.arange(27,30,0.5)    
     n_sources = len(apparent_magnitude) * stars_per_mag
     
+    try:
+        PSF_correction = correct_PSF(line)
+    except:
+        PSF_correction = 1
+
     for i in range(iterations):
 
         mock_sources = Table(data=np.zeros((n_sources,7)),names=['magnitude','flux','x_mean','y_mean','x_stddev','y_stddev','theta'])
@@ -232,7 +244,7 @@ def completeness_limit(
         indices[...,1] = np.arange(data.shape[1])
         indices = indices[~np.isnan(data)]
         mock_sources['x_mean'], mock_sources['y_mean'] = np.transpose(indices[np.random.choice(len(indices),n_sources)])
-        mock_sources['x_stddev'] = PSF[mock_sources['x_mean'],mock_sources['y_mean']] / (2*np.sqrt(2*np.log(2))) * oversize_PSF
+        mock_sources['x_stddev'] = PSF[mock_sources['x_mean'],mock_sources['y_mean']] / (2*np.sqrt(2*np.log(2))) 
         mock_sources['y_stddev'] = mock_sources['x_stddev']
         mock_sources['amplitude'] = mock_sources['flux'] / (mock_sources['x_stddev']*np.sqrt(2*np.pi))
 
@@ -251,12 +263,9 @@ def completeness_limit(
             mean, median, std = sigma_clipped_stats(err[(~np.isnan(PSF)) & (~mask)], sigma=3.0)
             #print(f'mean={mean:.2f}, mediam={median:.2f}, std={std:.2f}')
             
-            finder = StarFinder(fwhm      = fwhm*oversize_PSF, 
+            finder = StarFinder(fwhm      = fwhm*PSF_correction, 
                                 threshold = threshold*median,
-                                sharplo   = _sharpnesslo, 
-                                sharphi   = _sharpnesshi,
-                                roundlo   = -_roundness,
-                                roundhi   = _roundness)
+                                **daoargs)
             peaks_part = finder(mock_img, mask=mask)
             if peaks_part:
                 #logger.info(f'fwhm={fwhm:.3f}: {len(peaks_part)} sources found')
