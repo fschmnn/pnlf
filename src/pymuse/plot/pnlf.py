@@ -109,9 +109,9 @@ def plot_emission_line_ratio(table,mu,filename=None):
     
     fig, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(10,5))
     
-    style = {'SNR':{"marker":'o',"s":30,"edgecolors":'tab:red',"facecolors":'white'},
-             'HII':{"marker":'+',"s":50,"color":'black'},
-             'PN':{"marker":'o',"s":30,"color":'black'}
+    style = {'SNR':{"marker":'o',"ms":6,"mfc":'white',"mec":'tab:red','ls':'none','ecolor':'tab:red'},
+             'HII':{"marker":'+',"ms":6,"mec":'black','ls':'none'},
+             'PN':{"marker":'o',"ms":6,"mfc":'black','mec':'black','ls':'none','ecolor':'black'}
             }
 
     # ------------------------------------------------
@@ -124,7 +124,14 @@ def plot_emission_line_ratio(table,mu,filename=None):
 
     for t in ['HII','SNR','PN']:
         tbl = table[table['type']==t]
-        ax1.scatter(tbl['mOIII'],tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),**style[t],label=t)
+        ax1.errorbar(tbl['mOIII'],tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),**style[t],label=t) 
+
+        if t=='PN':
+            # indicate for which PN we don't have a detection in HA6562
+            tbl = tbl[~tbl['HA6562_detection']]
+            ax1.errorbar(tbl['mOIII'],1.1*tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),
+                         marker='|',ms=10,mec='black',ls='none') 
+
     ax1.legend()
     
     ax1.set(xlim=[24,30],
@@ -144,9 +151,16 @@ def plot_emission_line_ratio(table,mu,filename=None):
     #ax1.plot(mOIII,OIII_Ha)
     
     for t in ['HII','SNR','PN']:
-        tbl = table[table['type']==t]
-        ax2.scatter(np.log10(tbl['HA6562']/tbl['SII6716']),
-                    np.log10(tbl['HA6562']/tbl['NII6583']),**style[t],label=t)
+        tbl = table[(table['type']==t)] #& (table['HA6562_detection'] | table['HA6562_detection'])]
+        ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']),
+                     **style[t],label=t)
+
+        if t=='PN':
+            # indicate for which PN we don't have a detection in HA6562
+            tbl = tbl[~tbl['SII6716_detection'] | ~tbl['HA6562_detection']]
+            ax2.errorbar(0.05+np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']),
+                         marker='_',ms=10,mec='black',ls='none') 
+
     ax2.legend()
 
     ax2.axvline(np.log10(2.5),c='black',lw=0.6) 
