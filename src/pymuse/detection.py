@@ -136,7 +136,7 @@ def detect_unresolved_sources(
 
     # we save the found positions to a file
     if save:
-        filename = basedir / 'reports' / 'catalogues' / f'peaks_{self.name}.txt'
+        filename = basedir / 'data' / 'interim' / f'peaks_{self.name}.txt'
         with open(filename,'w',newline='\n') as f:
             ascii.write(peak_tbl[['id','x','y','peak','flux','RaDec','fwhm']],
                         f,format='fixed_width',overwrite=True)

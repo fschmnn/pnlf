@@ -65,8 +65,8 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
     ax1.errorbar(m[m>=completeness],hist[m>=completeness],yerr=err[m>completeness],
                  marker='o',ms=6,mec=color,mfc='white',ls='none',ecolor=color)
     ax1.plot(m_fine,binsize/binsize_fine*N*PNLF(bins_fine,mu=mu,mhigh=completeness),c=color,ls='dotted')
-    ax1.axvline(completeness,c='black',lw=0.2)
-    ax1.axvline(mu+Mmax,c='black',lw=0.2)
+    #ax1.axvline(completeness,c='black',lw=0.2)
+    #ax1.axvline(mu+Mmax,c='black',lw=0.2)
 
     # adjust plot
     ax1.set_yscale('log')
@@ -158,7 +158,7 @@ def plot_emission_line_ratio(table,mu,filename=None):
         if t=='PN':
             # indicate for which PN we don't have a detection in HA6562
             tbl = tbl[~tbl['SII6716_detection'] | ~tbl['HA6562_detection']]
-            ax2.errorbar(0.05+np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']),
+            ax2.errorbar(0.03+np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']),
                          marker='_',ms=10,mec='black',ls='none') 
 
     ax2.legend()

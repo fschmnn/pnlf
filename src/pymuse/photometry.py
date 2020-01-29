@@ -145,7 +145,7 @@ def measure_flux(self,peak_tbl,alpha,lines=None,aperture_size=1.5,background='lo
                 # each source individually 
                 if aperture_size > 3:
                     logger.warning('aperture > 3 FWHM')
-                r_in  = 3 * fwhm / 2  * PSF_correction
+                r_in  = 5* fwhm / 2  * PSF_correction
                 r_out = 3*np.sqrt(3*r**2+r_in**2)
                 annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
                 annulus_masks = annulus_aperture.to_mask(method='center')

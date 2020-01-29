@@ -6,41 +6,10 @@ from matplotlib.pyplot import figure
 from astropy.table import Table
 
 from scipy.optimize import minimize
+from scipy.integrate import quad
 from inspect import signature
 
 logger = logging.getLogger(__name__)
-
-class Distance:
-    def __init__(self,value,unit):
-        '''save distance in 
-
-        '''
-
-        if unit == 'cm':
-            self.value = value
-        elif unit == 'm':
-            self.value = value * 100
-        elif unit in {'pc','parsec'}:
-            self.value = value * 3.085678e18
-        elif unit in {'ly','lightyear'}:
-            self.value = value * 9.460730472e17
-        elif unit in {'mag','distance_modulus','mu'}:
-            self.value = 10**(1+value/5) *  3.085678e18 
-        else:
-            raise ValueError(f'unkown unit: {unit}')
-
-    def to_cm(self):
-        return self.value
-
-    def to_parsec(self):
-        return self.value / 3.085678e18 
-
-    def to_lightyear(self):
-        return self.value / 9.460730472e17
-
-    def to_distance_modulus(self):
-        return 5*np.log10(self.value/3.085678e18 ) - 5
-
 
 
 def emission_line_diagnostics(table,distance_modulus,completeness_limit):
@@ -97,7 +66,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
                        
     # if the flux is smaller than the error we set it to the error
     for col in ['OIII5006','HA6562','NII6583','SII6716']:
-        detection = (table[col]>0) & (table[col]/table[f'{col}_err']>3)
+        detection = (table[col]>0) & (table[col]>3*table[f'{col}_err'])
         logger.info(f'{np.sum(~detection)} not detected in {col}')
         table[col][np.where(~detection)] = table[f'{col}_err'][np.where(~detection)] 
         table[f'{col}_detection'] = detection
@@ -105,11 +74,18 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
     # calculate the absolute magnitude based on a first estimate of the distance modulus 
     table['MOIII'] = table['mOIII'] - distance_modulus
 
+    table['v_SIGMA'] = table['OIII5006_SIGMA']
+    better_HA_signal = np.where(table['HA6562']/table['HA6562_err'] > table['OIII5006']/table['OIII5006_err'])
+    better_SII_signal = np.where(table['SII6716']/table['SII6716_err'] > table['OIII5006']/table['OIII5006_err'])
+    table['v_SIGMA'][better_HA_signal] = table[better_HA_signal]['HA6562_SIGMA']
+    table['v_SIGMA'][better_SII_signal] = table[better_SII_signal]['SII6716_SIGMA']
+
     # define criterias to exclude non PN objects
     criteria = {}
     criteria[''] = 4 < np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583']))
     criteria['HII'] = (np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])) < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'])
-    criteria['SNR'] = (table['HA6562'] / table['SII6716'] < 2.5) & (table['HA6562_detection'] | table['SII6716_detection']) 
+    criteria['SNR'] = (table['HA6562'] / table['SII6716'] < 2.5)  & (table['HA6562_detection'] | table['SII6716_detection']) 
+    criteria['SNR'] |= (table['v_SIGMA']>80)
 
     for k in criteria.keys():
         table['type'][np.where(criteria[k])] = k
@@ -124,14 +100,17 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
 
     # purely for information
     mask = table['mOIII']< completeness_limit
-    logger.info(f'{np.sum(~mask)} objects below the completness limit')    
+    logger.info(f'{np.sum(~mask)} objects below the completness limit of {completeness_limit}')    
 
     logger.info(f'{len(table[table["type"]==""])} objects classified as 4<log [OIII]/Ha')
-    logger.info(f'{len(table[table["type"]=="HII"])} objects classified as HII')
-    logger.info(f'{len(table[table["type"]=="SNR"])} objects classified as SNR')
-    logger.info(f'{len(table[table["type"]=="PN"])} objects classified as PN')
+    logger.info(f'{len(table[table["type"]=="HII"])} ({len(table[(table["type"]=="HII") & (table["mOIII"]<completeness_limit)])}) objects classified as HII')
+    logger.info(f'{len(table[table["type"]=="SNR"])} ({len(table[(table["type"]=="SNR") & (table["mOIII"]<completeness_limit)])}) objects classified as SNR')
+    logger.info(f'{len(table[table["type"]=="PN"])} ({len(table[(table["type"]=="PN") & (table["mOIII"]<completeness_limit)])}) objects classified as PN')
     
     return table
+
+def gaussian(x,mu,sig):
+    return 1/np.sqrt(2*np.pi*sig**2) * np.exp(-(x-mu)**2/(2*sig**2))
 
 class MaximumLikelihood:
     '''
@@ -151,6 +130,9 @@ class MaximumLikelihood:
 
     err : ndarray
         Error associated with data.
+
+    prior : function
+        Prior probabilities for the parameters of func.
 
     method : 
         algorithm that is used for the minimization.
@@ -172,9 +154,10 @@ class MaximumLikelihood:
         self.method = method
         self.kwargs = kwargs
 
-    def prior(*args):
+    def prior(self,*args):
         '''uniform prior'''
-        return 1
+        return 1/len(self.data)
+
 
     def _loglike(self,params,data):
         '''calculate the log liklihood of the given parameters
@@ -184,7 +167,8 @@ class MaximumLikelihood:
         were initially passed to the class, they are also passed to the
         function
         '''
-        return -np.sum(np.log(self.func(data,*params,**self.kwargs))) - len(data)*np.log(self.prior(*params))
+        
+        return -np.sum(np.log(self.func(data,*params,**self.kwargs))) - np.log(self.prior(*params)) 
 
     def fit(self,guess):
         '''use scipy minimize to find the best parameters'''
@@ -199,7 +183,7 @@ class MaximumLikelihood:
         self.dx = np.zeros((len(self.x),2))
         if np.any(self.err):
             
-            B = 500
+            B = 100
             #bootstrapping
             result_bootstrap = np.zeros((B,len(self.x)))
             for i in range(B):
@@ -237,22 +221,198 @@ class MaximumLikelihood:
         return self.x
 
     def plot(self,limits):
-        '''plot the likelihood'''
+        '''plot the likelihood
         
-        x = np.linspace(*limits)
-        y = [-self._loglike([_],self.data) for _ in x]
+        plot the evidence, prior and likelihood for the given data over
+        some parameters space.
+        '''
+        
+        mu = np.linspace(*limits,500)
+        evidence   = np.exp([np.sum(np.log(self.func(self.data,*[_],**self.kwargs))) for _ in mu])
+        prior      = np.array([self.prior(_) for _ in mu])
+        likelihood = np.exp(np.array([-self._loglike([_],self.data) for _ in mu]))
+ 
+        valid = ~np.isnan(evidence) &  ~np.isnan(likelihood) 
+        evidence /= np.abs(np.trapz(evidence[valid],mu[valid]))
+        prior /= np.abs(np.trapz(prior[valid],mu[valid]))
+        likelihood /= np.abs(np.trapz(likelihood[valid],mu[valid]))
+
+        print(np.nanmean(likelihood))
+        print(np.nanstd(likelihood))
+
 
         fig = figure()
         ax  = fig.add_subplot()
 
-        ax.plot(x,y)
-        ax.set_label('log likelihood')
+        ax.plot(mu,evidence,label='evidence')
+        ax.plot(mu,prior,label='prior')
+        ax.plot(mu,likelihood,label='likelihood')
+        ax.legend()
+
+        ax.set_ylabel('likelihood')
+        ax.set_xlabel('mu')
 
     def __call__(self,guess):
         '''use scipy minimize to find the best parameters'''
 
         return self.fit(guess)
         
+
+class MaximumLikelihood1D:
+    '''
+
+    for uncertainties 
+    https://erikbern.com/2018/10/08/the-hackers-guide-to-uncertainty-estimates.html
+    
+    Parameters
+    ----------
+    func : function
+        PDF of the form `func(data,params)`. `func` must accept a
+        ndarray for `data` and can have any number of additional
+        parameters (at least one).
+        
+    data : ndarray
+        Measured data that are feed into `func`.
+
+    err : ndarray
+        Error associated with data.
+
+    prior : function
+        Prior probabilities for the parameters of func.
+
+    method : 
+        algorithm that is used for the minimization.
+
+    **kwargs
+       additional fixed key word arguments that are passed to func.
+    '''
+    
+    def __init__(self,func,data,err=None,prior=None,method='Nelder-Mead',**kwargs):
+        
+        #if len(signature(func).parameters)-len(kwargs)!=2:
+        #    raise ValueError(f'`func` must have at least one free argument')
+        self.func = func
+
+        logger.info(f'initialize fitter with {len(data)} data points')
+        self.data   = data
+        self.err    = err
+        if prior:
+            self.prior = prior
+        self.method = method
+        self.kwargs = kwargs
+
+        width = 5
+        size = 1000
+        
+        idx_low = np.argmin(self.data)
+        idx_high = np.argmax(self.data)
+        if np.any(err):
+            self.grid = np.linspace(self.data[idx_low]-width*self.err[idx_low],self.data[idx_high]+width*self.err[idx_high],size)
+        
+    def prior(self,*args):
+        '''uniform prior'''
+        return 1/len(self.data)
+
+    def evidence(self,param):
+        '''the evidence is the likelihood of observing the data given the parameter'''
+        
+        # real integration takes way too long
+        #return -np.sum(np.log([quad(lambda x: self.func(x,param,**self.kwargs)*gaussian(x,d,e),d-5*e,d+5*e)[0] for d,e in zip(self.data,self.err)]))
+        
+        if np.any(self.err):
+            ev = [np.trapz(self.func(self.grid,param,**self.kwargs)*gaussian(self.grid,d,e),self.grid) for d,e in zip(self.data,self.err)]                
+            return np.sum(np.log(ev))
+        else:
+            ev = self.func(self.data,param,**self.kwargs)
+            return np.sum(np.log(ev))
+        
+    def likelihood(self,param):
+        '''the evidence multiplied with some prior'''
+        
+        return -self.evidence(param) - np.log(self.prior(param)) 
+        
+    def fit(self,guess):
+        '''use scipy minimize to find the best parameters'''
+        
+        #logger.info(f'searching for best parameters with {len(self.data)} data points')
+
+        self.result = minimize(self.likelihood,guess,method=self.method)
+        self.x = self.result.x[0]
+        if not self.result.success:
+            raise RuntimeError('fit was not successful')
+
+        #for name,_x,_dx in zip(list(signature(self.func).parameters)[1:],self.x,self.dx):
+        #    print(f'{name} = {_x:.3f} + {_dx[1]:.3f} - {_dx[0]:.3f} ')
+        
+        return self.x
+
+    def plot(self,limits):
+        '''plot the likelihood
+        
+        plot the evidence, prior and likelihood for the given data over
+        some parameters space.
+        '''
+        
+        x = np.linspace(*limits,1000)
+        evidence   = np.exp([self.evidence(_) for _ in x])
+        prior      = np.array([self.prior(_) for _ in x])
+        likelihood = np.exp([-self.likelihood(_) for _ in x])
+ 
+        valid = ~np.isnan(evidence) &  ~np.isnan(likelihood) 
+        evidence /= np.abs(np.trapz(evidence[valid],x[valid]))
+        prior /= np.abs(np.trapz(prior[valid],x[valid]))
+        likelihood /= np.abs(np.trapz(likelihood[valid],x[valid]))
+
+        normalization = np.trapz(likelihood,x)
+        integral = np.array([np.trapz(likelihood[x<=xp],x[x<=xp])/normalization for xp in x[1:]])
+       
+        # 1 sigma interval for cumulative likelihood
+        mid = np.argmin(np.abs(integral-0.5))
+        high = np.argmin(np.abs(integral-0.8415))
+        low = np.argmin(np.abs(integral-0.1585))
+
+        dp = x[high]-self.x
+        dm = self.x-x[low]
+
+        logger.info(f'{self.x:.3f}+{dp:.3f}-{dm:.3f}')
+        
+        fig = figure(figsize=(8,6))
+        ax1 = fig.add_subplot(2,1,1)
+        ax2 = fig.add_subplot(2,1,2,sharex=ax1)
+        ax1.tick_params(labelbottom=False)
+
+        ax1.plot(x,evidence,label='evidence',color='tab:green')
+        ax1.plot(x,prior,label='prior',color='tab:blue')
+        ax1.plot(x,likelihood,label='likelihood',color='tab:orange')
+        
+        ax1.axvline(self.x,ls='--',c='k',lw=0.5)
+        ax1.axvline(x[low],ls='--',c='k',lw=0.5)
+        ax1.axvline(x[high],ls='--',c='k',lw=0.5)
+        
+        ax1.legend()
+
+        ax1.set_ylabel('likelihood')
+        ax2.set_xlabel('mu')
+        
+
+        ax2.plot(x[1:],integral,label='cumulative likelihood',color='tab:orange')
+        ax2.axvline(self.x,ls='--',c='k',lw=0.5)
+        ax2.axhline(0.5,ls='--',c='k',lw=0.5)
+
+        ax2.axhline(0.5+0.683/2,ls='--',c='k',lw=0.5)
+        ax2.axhline(0.5-0.683/2,ls='--',c='k',lw=0.5)
+        ax2.axvline(x[low],ls='--',c='k',lw=0.5)
+        ax2.axvline(x[high],ls='--',c='k',lw=0.5)
+        
+        ax2.set_xlabel('mu')
+        ax2.set_ylabel('cumulative likelihood')
+
+        return (self.x,dp,dm)
+    
+    def __call__(self,guess):
+        '''use scipy minimize to find the best parameters'''
+
+        return self.fit(guess)
 
 
 def f(m,mu,Mmax=-4.47):
@@ -295,7 +455,7 @@ def pnlf(m,mu,mhigh,Mmax=-4.47):
     
     normalization = 1/(F(mhigh,mu) - F(mlow,mu))    
     out = normalization * np.exp(0.307*(m-mu)) * (1-np.exp(3*(Mmax-m+mu)))
-    out[(m>mhigh) & (m<mlow)] = 0
+    out[(m>mhigh) | (m<mlow)] = 0
     
     return out
 

@@ -17,6 +17,24 @@ from photutils import CircularAperture         # define circular aperture
 
 from ..analyse import PNLF
 
+def figsize(scale=1):
+    '''Create nicely proportioned figure
+
+    This function calculates the optimal figuresize for any given scale
+    (the ratio between figuresize and textwidth. A figure with scale 1
+    covers the entire writing area). Therefor it is important to know 
+    the textwidth of your target document. This can be obtained by using
+    the command "\the\textwidth" somewhere inside your document.
+    '''
+
+    # for one column: 504.0p
+    width_pt  = 240                           # textwidth from latex
+    in_per_pt = 1.0/72.27                     # Convert pt to inch
+    golden    = 1.61803398875                 # Aesthetic ratio 
+    width  = width_pt * in_per_pt * scale     # width in inches
+    height = width / golden                   # height in inches
+    return [width,height]
+
 def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
     '''plot line map with detected sources
     
@@ -40,9 +58,9 @@ def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
     apertures = []
     if isinstance(positions,tuple) or isinstance(positions,list):
         for position in positions:
-            apertures.append(CircularAperture(position, r=4))
+            apertures.append(CircularAperture(position, r=5))
     else:
-        apertures.append(CircularAperture(positions, r=4))
+        apertures.append(CircularAperture(positions, r=5))
 
     fig = figure(figsize=(12,12))
     ax = fig.add_subplot(111, projection=wcs)
@@ -59,9 +77,9 @@ def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
                vmax=vmax
               )
 
-    colors = ['red','yellow','orange','green']
+    colors = ['tab:red','yellow','orange','green']
     for i,aperture in enumerate(apertures):
-        aperture.plot(color=colors[i],lw=.6, alpha=0.9)
+        aperture.plot(color=colors[i],lw=.8, alpha=1)
 
     ax.set_xlabel('RA')
     ax.set_ylabel('Dec')
@@ -115,7 +133,7 @@ def sample_cutouts(data,peaks_tbl,wcs,nrows=10,ncols=10,filename=None):
             print('this should not be')
 
         norm = simple_norm(stars[i].data, 'log', percent=99.)
-        ax.imshow(stars[i].data, norm=norm, origin='lower', cmap='viridis')
+        ax.imshow(stars[i].data, norm=norm, origin='lower', cmap='Blues_r')
 
     if filename:
         if not isinstance(filename,Path):
@@ -154,8 +172,8 @@ def single_cutout(self,extension,x,y,size=32):
     ax2 = fig.add_subplot(1,2,2)
     
     norm = simple_norm(star.data, 'log')#, percent=99.)
-    im = ax1.imshow(star.data, norm=norm, origin='lower', cmap='viridis')
-    fig.colorbar(im,ax=ax1)
+    im = ax1.imshow(star.data, norm=norm, origin='lower', cmap='Blues')
+    #fig.colorbar(im,ax=ax1)
 
     ax2.plot(profile)
     ax2.set_xlabel('radius in px')
