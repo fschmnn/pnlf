@@ -81,4 +81,4 @@ for i, name in enumerate(galaxies[:-1]):
     ax.imshow(rgb,origin='lower')
     ax.set_title(name)
     
-plt.savefig(basedir / 'reports' / 'figures' / 'all_objects_rgb.pdf')
+plt.savefig(basedir / 'reports' / 'all_objects_rgb.pdf')

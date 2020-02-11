@@ -55,7 +55,7 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
     m_fine = (bins_fine[1:]+bins_fine[:-1]) /2
     
     # create an empty figure
-    fig = newfig(ratio=0.5)
+    fig = figure(figsize=(6.974,6.974/2))
     ax1 = fig.add_subplot(1,2,1)
     ax2 = fig.add_subplot(1,2,2)
 
@@ -107,11 +107,11 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
 def plot_emission_line_ratio(table,mu,filename=None):
     
     
-    fig, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(10,5))
+    fig, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(6.974,6.974/2))
     
     style = {'SNR':{"marker":'o',"ms":6,"mfc":'white',"mec":'tab:red','ls':'none','ecolor':'tab:red'},
              'HII':{"marker":'+',"ms":6,"mec":'black','ls':'none'},
-             'PN':{"marker":'o',"ms":6,"mfc":'black','mec':'black','ls':'none','ecolor':'black'}
+             'PN':{"marker":'o',"ms":3,"mfc":'black','mec':'black','ls':'none','ecolor':'black'}
             }
 
     # ------------------------------------------------
@@ -132,13 +132,13 @@ def plot_emission_line_ratio(table,mu,filename=None):
             ax1.errorbar(tbl['mOIII'],1.1*tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),
                          marker='|',ms=10,mec='black',ls='none') 
 
-    ax1.legend()
+    #wax1.legend()
     
     ax1.set(xlim=[24,30],
            ylim=[0.03,30],
            yscale='log',
-           xlabel='m_OIII',
-           ylabel='OIII/Ha')
+           xlabel=r'$m_{\mathrm{[OIII]}}$',
+           ylabel=r'[OIII] / $\mathrm{H}\alpha$')
     
     ax1.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.16g}'.format(y)))
 
@@ -174,8 +174,8 @@ def plot_emission_line_ratio(table,mu,filename=None):
     ax2.set(xlim=[-1,1.5],
            ylim=[-1,1],
            #yscale='log',
-           xlabel=r'Log (H$\alpha$ / [SII])',
-           ylabel=r'Log (H$\alpha$ / [NII])')    
+           xlabel=r'$\log (\mathrm{H}\alpha$ / [SII])',
+           ylabel=r'$\log (\mathrm{H}\alpha$ / [NII])')    
     ax2.xaxis.set_major_locator(mpl.ticker.MultipleLocator(0.5))
     ax2.yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.5))
     ax2.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.1))

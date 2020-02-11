@@ -62,10 +62,10 @@ def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
     else:
         apertures.append(CircularAperture(positions, r=5))
 
-    fig = figure(figsize=(12,12))
+    fig = figure(figsize=(6.974,6.974/2))
     ax = fig.add_subplot(111, projection=wcs)
     vmax = np.nanpercentile(data,95)
-    norm = simple_norm(data[~np.isnan(data)], 'log',max_percent=95.,clip=False)
+    norm = simple_norm(data[~np.isnan(data)], 'linear',max_percent=98.,clip=False)
     cmap = plt.cm.Blues_r
     cmap.set_bad('w')
 
@@ -88,7 +88,7 @@ def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
         if not isinstance(filename,Path):
             filename = Path(filename)
 
-        plt.savefig(filename)
+        plt.savefig(filename,dpi=600)
 
 
 def sample_cutouts(data,peaks_tbl,wcs,nrows=10,ncols=10,filename=None):
@@ -151,35 +151,55 @@ def radial_profile(data, center):
     radialprofile = tbin / nr
     return radialprofile
  
-def single_cutout(self,extension,x,y,size=32):
+def single_cutout(self,x,y,size=32):
     '''create cutouts of a single sources and plot it'''
     
+    extension = 'OIII5006'
     data = getattr(self,extension)
     wcs  = self.wcs
     
     # defien the size of the cutout region
-    size = u.Quantity((size, size), u.pixel)
-    star = Cutout2D(data, (x,y), size,wcs=wcs)
+    star = Cutout2D(data, (x,y), u.Quantity((size, size), u.pixel),wcs=wcs)
     
     profile = radial_profile(star.data,star.input_position_cutout)
     #fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(20, 20),squeeze=True)
-    #ax = ax.ravel()
-    
-    fig = figure(figsize=(10,5))
+    #ax = ax.ravel()    labels=['SII6716','HA6562','OIII5006'
+    r = Cutout2D(getattr(self,'SII6716'), (x,y), size,wcs=wcs).data
+    g = Cutout2D(getattr(self,'HA6562'), (x,y), size,wcs=wcs).data
+    b = Cutout2D(getattr(self,'OIII5006'), (x,y), size,wcs=wcs).data
+
+    #rgb = create_RGB(r,g,b,percentile=99)
+
+    rgb = create_RGB(self.SII6716,self.HA6562,self.OIII5006,percentile=99)
+    #rgb = Cutout2D(rgb,(x,y),size,wcs=wcs).data
+
+    fig = figure(figsize=(2*6.974,2*6.974/3))
     
     # get an index idx from 0 to nrows*ncols and a random index i from 0 to len(stars)
-    ax1 = fig.add_subplot(1,2,1,projection=star.wcs)
-    ax2 = fig.add_subplot(1,2,2)
+    ax1 = fig.add_subplot(1,3,1,projection=star.wcs)
+    ax2 = fig.add_subplot(1,3,2,projection=star.wcs)
+    ax3 = fig.add_subplot(1,3,3)
     
-    norm = simple_norm(star.data, 'log')#, percent=99.)
-    im = ax1.imshow(star.data, norm=norm, origin='lower', cmap='Blues')
+    norm = simple_norm(data,percent=99,clip=False)#, percent=99.)
+    im1 = ax1.imshow(data, norm=norm, origin='lower', cmap='Blues_r')
+    im2 = ax2.imshow(rgb,origin='lower')
+
+    ax1.set_xlim([x-size/2,x+size/2])
+    ax1.set_ylim([y-size/2,y+size/2])
+    ax2.set_xlim([x-size/2,x+size/2])
+    ax2.set_ylim([y-size/2,y+size/2])
+
+    #im1 = ax1.imshow(star.data, norm=norm, origin='lower', cmap='Blues_r')
+    #im2 = ax2.imshow(rgb,origin='lower')
     #fig.colorbar(im,ax=ax1)
 
-    ax2.plot(profile)
-    ax2.set_xlabel('radius in px')
+    ax3.plot(profile)
+    #ax3.set_xlabel(r'radius in px')
+
+    ax2.set_yticks([])
 
 
-def create_RGB(r,g,b,percentile=90):
+def create_RGB(r,g,b,percentile=95):
     '''combie three arrays to one RGB image
     
     Parameters

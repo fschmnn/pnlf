@@ -106,7 +106,7 @@ def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
 tmp = tbl[np.where(criteria & (tbl['mOIII']<28.5))]
 pos = np.transpose((tmp['x'],tmp['y']))
 
-save_file = Path.cwd() / '..' / 'reports' / 'figures' / f'{galaxy.name}_map_PN.pdf'
+save_file = Path.cwd() / '..' / 'reports' / f'{galaxy.name}_map_PN.pdf'
 plot_sky_with_detected_stars(data=galaxy.OIII5006_DAP,
                              wcs=galaxy.wcs,
                              positions=pos,

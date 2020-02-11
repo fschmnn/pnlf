@@ -52,7 +52,7 @@ pgf.preamble:       \usepackage{amsmath}
 
 # blank entrie inherit fonts from document
 font.family:     serif
-font.serif:      Times    
+font.serif:      []    
 font.sans-serif: []
 font.monospace:  []
 

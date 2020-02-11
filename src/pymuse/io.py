@@ -1,5 +1,6 @@
 import errno              # handle errors
 import logging            # log errors
+import os
 from pathlib import Path  # filesystem related stuff
 
 from astropy.wcs import WCS    # handle astronomic coordinates

@@ -3,6 +3,7 @@ from pathlib import Path    # filesystem related stuff
 import numpy as np          # numerical computations
 from matplotlib.pyplot import figure
 
+from astropy.stats import sigma_clipped_stats  # calcualte statistics of images
 from astropy.table import Table
 
 from scipy.optimize import minimize
@@ -66,7 +67,8 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
                        
     # if the flux is smaller than the error we set it to the error
     for col in ['OIII5006','HA6562','NII6583','SII6716']:
-        detection = (table[col]>0) & (table[col]>3*table[f'{col}_err'])
+        # median of error maps is a factor of 3 smaller than std of maps
+        detection = (table[col]>0) & (table[col]>10*table[f'{col}_err'])
         logger.info(f'{np.sum(~detection)} not detected in {col}')
         table[col][np.where(~detection)] = table[f'{col}_err'][np.where(~detection)] 
         table[f'{col}_detection'] = detection
@@ -79,13 +81,15 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
     better_SII_signal = np.where(table['SII6716']/table['SII6716_err'] > table['OIII5006']/table['OIII5006_err'])
     table['v_SIGMA'][better_HA_signal] = table[better_HA_signal]['HA6562_SIGMA']
     table['v_SIGMA'][better_SII_signal] = table[better_SII_signal]['SII6716_SIGMA']
+    logger.info('v_sigma: median={:.2f}, median={:.2f}, sig={:.2f}'.format(*sigma_clipped_stats(table['v_SIGMA'][~np.isnan(table['v_SIGMA'])])))
 
     # define criterias to exclude non PN objects
     criteria = {}
-    criteria[''] = 4 < np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583']))
+    criteria[''] = 4 < np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])) 
     criteria['HII'] = (np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])) < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'])
     criteria['SNR'] = (table['HA6562'] / table['SII6716'] < 2.5)  & (table['HA6562_detection'] | table['SII6716_detection']) 
-    criteria['SNR'] |= (table['v_SIGMA']>80)
+    #criteria['SNR'] |= (table['v_SIGMA']>100)
+    #criteria['cl'] = ~table['OIII5006_detection']
 
     for k in criteria.keys():
         table['type'][np.where(criteria[k])] = k
@@ -346,14 +350,19 @@ class MaximumLikelihood1D:
         
         return self.x
 
-    def plot(self,limits):
+    def plot(self,limits=[]):
         '''plot the likelihood
         
         plot the evidence, prior and likelihood for the given data over
         some parameters space.
         '''
+
+        if not hasattr(self,'x'):
+            logger.warning('run fit function first. I do it for you this time.')
+            self.guess(30)
         
-        x = np.linspace(*limits,1000)
+
+        x = np.linspace(self.x-1,self.x+1,1000)
         evidence   = np.exp([self.evidence(_) for _ in x])
         prior      = np.array([self.prior(_) for _ in x])
         likelihood = np.exp([-self.likelihood(_) for _ in x])
@@ -406,6 +415,7 @@ class MaximumLikelihood1D:
         
         ax2.set_xlabel('mu')
         ax2.set_ylabel('cumulative likelihood')
+        ax1.set_title(f'{self.x:.3f}+{dp:.3f}-{dm:.3f}')
 
         return (self.x,dp,dm)
     

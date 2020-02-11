@@ -18,6 +18,7 @@ from photutils import IRAFStarFinder           # IRAF starfind routine to detect
 
 from collections import OrderedDict                           # make random table reproducable
 from photutils.datasets import make_gaussian_sources_image    # create table with mock sources
+from photutils import make_source_mask
 
 #from astropy.convolution import convolve, Gaussian2DKernel
 
@@ -35,6 +36,8 @@ def detect_unresolved_sources(
     line : list,
     StarFinder,
     threshold : float=5.,
+    oversize: float=1.,
+    exclude_region=None,
     save=False,
     **kwargs
     ) -> Table:
@@ -53,6 +56,9 @@ def detect_unresolved_sources(
 
     threshold : 
         detection threshold in terms of background median
+
+    oversize :
+        increase the size of the PSF (becaues it is a Moffat)
 
     save : bool
         save the result is to a file in `reports/catalogues/`
@@ -74,36 +80,41 @@ def detect_unresolved_sources(
     err  = getattr(self,f'{line}_err')
     PSF  = getattr(self,'PSF') 
 
-    #sigma_max = np.nanmax(PSF) * gaussian_fwhm_to_sigma
-    #kernel = Gaussian2DKernel(x_stddev=sigma_max)
-    #data = convolve(data, kernel)
-    #PSF[:,:] = sigma_max
+    if not np.any(exclude_region):
+        exclude_region = np.zeros(data.shape,dtype=bool)
+    else:
+        print(f'masking {np.sum(exclude_region)/np.prod(exclude_region.shape)*100:.2f} % of the image')
 
     logger.info(f'searching for sources in {self.name} with [{line}] line map (using ' + \
           str(StarFinder).split('.')[-1][:-2] + ')\n' )
     
     # header for the print information
     logger.info(f'{"fwhm":>9}{"#N":>5}{"mean":>8}{"median":>8}{"std":>8}')
-    
+
+    #mean, median, std = sigma_clipped_stats(data[~np.isnan(PSF)], sigma=2.,maxiters=None)
+
+    try:
+        PSF_correction = correct_PSF(line)
+    except:
+        PSF_correction = 1
+
     # loop over all pointings with different PSFs
     for fwhm in np.unique(PSF[~np.isnan(PSF)]):
                 
         # we create a mask for the current pointing (must be inverted)
-        mask = (PSF == fwhm) & (~np.isnan(PSF))
-
-        mean, median, std = sigma_clipped_stats(err[mask], sigma=3.0,maxiters=None)
-
-        try:
-            PSF_correction = correct_PSF(line)
-        except:
-            PSF_correction = 1
+        psf_mask = (PSF == fwhm) #& (~np.isnan(PSF))
+        source_mask = make_source_mask(data, nsigma=2, npixels=5, dilate_size=int(3*fwhm)) | ~psf_mask
+        mean, median, std = sigma_clipped_stats(data, sigma=3.0,maxiters=None,mask=source_mask)
         
         # initialize and run StarFinder (DAOPHOT or IRAF)
-        finder = StarFinder(fwhm      = fwhm * PSF_correction, 
-                            threshold = np.abs(threshold*median),
+        finder = StarFinder(fwhm      = fwhm * PSF_correction * oversize, 
+                            threshold = threshold*std,
                             **daoargs)
-        peaks_part = finder(data, mask=~mask)
-            
+        peaks_part = finder(data, mask=(~psf_mask | exclude_region))
+        
+        if not peaks_part:
+            logger.warning('no sources found in pointing')
+            continue
         # save fwhm in an additional column
         peaks_part['fwhm'] = fwhm
         
@@ -189,8 +200,10 @@ def completeness_limit(
     line,
     StarFinder,
     threshold,
+    oversize=1.,
     stars_per_mag=10,
     iterations=1,
+    test_range=[26.5,29.5],
     **kwargs
     ): 
     '''determine completness limit 
@@ -224,7 +237,7 @@ def completeness_limit(
     #----------------------------------------------------------------
     # craete mock data
     #----------------------------------------------------------------
-    apparent_magnitude = np.arange(27,30,0.5)    
+    apparent_magnitude = np.arange(*test_range,0.5)    
     n_sources = len(apparent_magnitude) * stars_per_mag
     
     try:
@@ -232,7 +245,11 @@ def completeness_limit(
     except:
         PSF_correction = 1
 
-    for i in range(iterations):
+    j = 0
+    while j < iterations:
+    #for i in range(iterations):
+        
+        logger.info(f'iteration {j+1} of {iterations}')
 
         mock_sources = Table(data=np.zeros((n_sources,7)),names=['magnitude','flux','x_mean','y_mean','x_stddev','y_stddev','theta'])
         for i,m in enumerate(apparent_magnitude):
@@ -244,7 +261,8 @@ def completeness_limit(
         indices[...,1] = np.arange(data.shape[1])
         indices = indices[~np.isnan(data)]
         mock_sources['x_mean'], mock_sources['y_mean'] = np.transpose(indices[np.random.choice(len(indices),n_sources)])
-        mock_sources['x_stddev'] = PSF[mock_sources['x_mean'],mock_sources['y_mean']] / (2*np.sqrt(2*np.log(2))) 
+        # get PSF size at the generated position
+        mock_sources['x_stddev'] = PSF_correction * PSF[mock_sources['x_mean'],mock_sources['y_mean']] * gaussian_fwhm_to_sigma * oversize
         mock_sources['y_stddev'] = mock_sources['x_stddev']
         mock_sources['amplitude'] = mock_sources['flux'] / (mock_sources['x_stddev']*np.sqrt(2*np.pi))
 
@@ -259,14 +277,16 @@ def completeness_limit(
         # detection run
         #----------------------------------------------------------------
         for fwhm in np.unique(PSF[~np.isnan(PSF)]):
-            mask = ~(PSF == fwhm)
-            mean, median, std = sigma_clipped_stats(err[(~np.isnan(PSF)) & (~mask)], sigma=3.0)
+            # we create a mask for the current pointing (must be inverted)
+            mask = (PSF == fwhm) #& (~np.isnan(PSF))
+            source_mask = make_source_mask(data, nsigma=2, npixels=5, dilate_size=int(3*fwhm)) | ~mask
+            mean, median, std = sigma_clipped_stats(data, sigma=3.0,maxiters=None,mask=source_mask)
             #print(f'mean={mean:.2f}, mediam={median:.2f}, std={std:.2f}')
             
-            finder = StarFinder(fwhm      = fwhm*PSF_correction, 
-                                threshold = threshold*median,
+            finder = StarFinder(fwhm      = fwhm*PSF_correction*oversize, 
+                                threshold = threshold*std,
                                 **daoargs)
-            peaks_part = finder(mock_img, mask=mask)
+            peaks_part = finder(mock_img, mask=~mask)
             if peaks_part:
                 #logger.info(f'fwhm={fwhm:.3f}: {len(peaks_part)} sources found')
                 if 'peak_tbl' in locals():
@@ -275,15 +295,18 @@ def completeness_limit(
                 else:
                     peak_tbl = peaks_part
             else:
-                pass
-                #logger.info(f'fwhm={fwhm:>7.3f}: no sources found')
-        
-        logger.info(f'{len(peak_tbl)} sources found')
+                logger.info(f'fwhm={fwhm:>7.3f}: no sources found')
+
+        if 'peak_tbl' in locals():
+            logger.info(f'{len(peak_tbl)} sources found')
+        else:
+            logger.warning('no sources found')
+            continue
 
         #----------------------------------------------------------------
         # compare detected sources to known mock stars
         #----------------------------------------------------------------
-        logger.info(f'searching for best match')
+        logger.info(f'compare detected sources to injected sources')
         
         idx , sep = match_catalogues(mock_sources[['x_mean','y_mean']],peak_tbl[['xcentroid','ycentroid']])
         mock_sources['sep'] = sep
@@ -299,17 +322,20 @@ def completeness_limit(
             hist = h
 
         del peak_tbl
+        j+= 1
+
     #----------------------------------------------------------------
     
     #----------------------------------------------------------------
     # create the histogram
     #----------------------------------------------------------------
     fig, ax = plt.subplots()
+    ax.axhline(80,color='black')
     ax.bar(apparent_magnitude,hist/stars_per_mag*100/iterations,width=0.4)
     ax.set(xlabel='m$_{[\mathrm{OIII}]}$',
            ylabel='detected sources in %',
            ylim=[0,100])
-    plt.savefig(basedir / 'reports' / 'figures' / f'{self.name}_completness.pdf')
+    plt.savefig(basedir / 'reports' / f'{self.name}_completness.pdf')
     plt.show()
     #----------------------------------------------------------------
 

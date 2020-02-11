@@ -145,8 +145,8 @@ def measure_flux(self,peak_tbl,alpha,lines=None,aperture_size=1.5,background='lo
                 # each source individually 
                 if aperture_size > 3:
                     logger.warning('aperture > 3 FWHM')
-                r_in  = 5* fwhm / 2  * PSF_correction
-                r_out = 3*np.sqrt(3*r**2+r_in**2)
+                r_in  = 5 * fwhm / 2  * PSF_correction
+                r_out = 1.*np.sqrt(3*r**2+r_in**2)
                 annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
                 annulus_masks = annulus_aperture.to_mask(method='center')
                 
@@ -155,7 +155,7 @@ def measure_flux(self,peak_tbl,alpha,lines=None,aperture_size=1.5,background='lo
                     # select the pixels inside the annulus and calulate sigma clipped median
                     annulus_data = mask.multiply(data)
                     annulus_data_1d = annulus_data[mask.data > 0]
-                    _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],maxiters=None)          
+                    _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=5,maxiters=None)          
                     bkg_median.append(median_sigclip)
 
                 # save bkg_median in case we need it again

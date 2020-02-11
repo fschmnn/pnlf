@@ -114,5 +114,5 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
         show()
 
 
-filename = basedir / 'reports' / 'figures' / f'{name}_PNLF.pdf'
+filename = basedir / 'reports' / f'{name}_PNLF.pdf'
 plot_pnlf(tbl[criteria]['mOIII'],mu,completeness,binsize=0.4,mhigh=32,filename=filename)
