@@ -13,7 +13,7 @@ from inspect import signature
 logger = logging.getLogger(__name__)
 
 
-def emission_line_diagnostics(table,distance_modulus,completeness_limit):
+def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True):
     '''Classify objects based on their emission lines 
     
     we use three criteria to distinguish between PN, HII regions and SNR:
@@ -43,6 +43,9 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
        A first guess of the distance modulus (used for diagnostics)
        distance_modulus = m - M
        
+    SNR : bool
+        remove supernovae remnants based on SII to HA ratio
+
     Returns
     -------
     table : Astropy Table
@@ -87,7 +90,9 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
     criteria = {}
     criteria[''] = 4 < np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])) 
     criteria['HII'] = (np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])) < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'])
-    criteria['SNR'] = (table['HA6562'] / table['SII6716'] < 2.5)  & (table['HA6562_detection'] | table['SII6716_detection']) 
+    if SNR:
+        criteria['SNR'] = (table['HA6562'] / table['SII6716'] < 2.5)  & (table['HA6562_detection'] | table['SII6716_detection']) 
+
     #criteria['SNR'] |= (table['v_SIGMA']>100)
     #criteria['cl'] = ~table['OIII5006_detection']
 
@@ -108,7 +113,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit):
 
     logger.info(f'{len(table[table["type"]==""])} objects classified as 4<log [OIII]/Ha')
     logger.info(f'{len(table[table["type"]=="HII"])} ({len(table[(table["type"]=="HII") & (table["mOIII"]<completeness_limit)])}) objects classified as HII')
-    logger.info(f'{len(table[table["type"]=="SNR"])} ({len(table[(table["type"]=="SNR") & (table["mOIII"]<completeness_limit)])}) objects classified as SNR')
+    logger.info(f'{len(table[(table["type"]=="SNR") | (table["type"]=="SNRpn")])} ({len(table[((table["type"]=="SNR")  | (table["type"]=="SNRpn") ) & (table["mOIII"]<completeness_limit)])}) objects classified as SNR')
     logger.info(f'{len(table[table["type"]=="PN"])} ({len(table[(table["type"]=="PN") & (table["mOIII"]<completeness_limit)])}) objects classified as PN')
     
     return table
@@ -359,7 +364,7 @@ class MaximumLikelihood1D:
 
         if not hasattr(self,'x'):
             logger.warning('run fit function first. I do it for you this time.')
-            self.guess(30)
+            self.fit(24)
         
 
         x = np.linspace(self.x-1,self.x+1,1000)

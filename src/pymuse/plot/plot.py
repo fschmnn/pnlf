@@ -77,9 +77,9 @@ def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
                vmax=vmax
               )
 
-    colors = ['tab:red','yellow','orange','green']
+    colors = ['tab:red','tab:orange','tab:green']
     for i,aperture in enumerate(apertures):
-        aperture.plot(color=colors[i],lw=.8, alpha=1)
+        aperture.plot(color=colors[i],lw=.2, alpha=1)
 
     ax.set_xlabel('RA')
     ax.set_ylabel('Dec')
@@ -176,18 +176,18 @@ def single_cutout(self,x,y,size=32):
     fig = figure(figsize=(2*6.974,2*6.974/3))
     
     # get an index idx from 0 to nrows*ncols and a random index i from 0 to len(stars)
-    ax1 = fig.add_subplot(1,3,1,projection=star.wcs)
-    ax2 = fig.add_subplot(1,3,2,projection=star.wcs)
+    ax1 = fig.add_subplot(1,3,1)
+    ax2 = fig.add_subplot(1,3,2)
     ax3 = fig.add_subplot(1,3,3)
     
     norm = simple_norm(data,percent=99,clip=False)#, percent=99.)
-    im1 = ax1.imshow(data, norm=norm, origin='lower', cmap='Blues_r')
-    im2 = ax2.imshow(rgb,origin='lower')
+    im1 = ax1.imshow(data[int(y-size/2):int(y+size/2),int(x-size/2):int(x+size/2)], norm=norm, origin='lower', cmap='Blues_r')
+    im2 = ax2.imshow(rgb[int(y-size/2):int(y+size/2),int(x-size/2):int(x+size/2),:],origin='lower')
 
-    ax1.set_xlim([x-size/2,x+size/2])
-    ax1.set_ylim([y-size/2,y+size/2])
-    ax2.set_xlim([x-size/2,x+size/2])
-    ax2.set_ylim([y-size/2,y+size/2])
+    #ax1.set_xlim([x-size/2,x+size/2])
+    #ax1.set_ylim([y-size/2,y+size/2])
+    #ax2.set_xlim([x-size/2,x+size/2])
+    #ax2.set_ylim([y-size/2,y+size/2])
 
     #im1 = ax1.imshow(star.data, norm=norm, origin='lower', cmap='Blues_r')
     #im2 = ax2.imshow(rgb,origin='lower')
@@ -197,6 +197,8 @@ def single_cutout(self,x,y,size=32):
     #ax3.set_xlabel(r'radius in px')
 
     ax2.set_yticks([])
+
+    return rgb
 
 
 def create_RGB(r,g,b,percentile=95):
