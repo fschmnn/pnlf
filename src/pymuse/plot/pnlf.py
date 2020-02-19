@@ -15,7 +15,7 @@ basedir = Path(__file__).parent.parent.parent.parent
 tab10 = ['#e15759','#4e79a7','#f28e2b','#76b7b2','#59a14e','#edc949','#b07aa2','#ff9da7','#9c755f','#bab0ac']    
 
 def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
-              filename=None,color='tab:red'):
+              filename=None,color='tab:red',axes=None):
     '''Plot Planetary Nebula Luminosity Function
     
     
@@ -60,11 +60,14 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
     m_fine = (bins_fine[1:]+bins_fine[:-1]) /2
     hist_fine, _ = np.histogram(data,bins_fine,normed=False)
 
-    # create an empty figure
-    fig = figure(figsize=(6.974,6.974/2))
-    ax1 = fig.add_subplot(1,2,1)
-    ax2 = fig.add_subplot(1,2,2)
-
+    if not axes:
+        # create an empty figure
+        fig = figure(figsize=(6.974,6.974/2))
+        ax1 = fig.add_subplot(1,2,1)
+        ax2 = fig.add_subplot(1,2,2)
+    else:
+        ax1,ax2 = axes 
+        
     # scatter plot
     ax1.errorbar(m[m<completeness],hist[m<completeness],yerr=err[m<completeness],
                  marker='o',ms=6,mec=color,mfc=color,ls='none',ecolor=color)
@@ -109,14 +112,17 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
     if not final:
         plt.show()
 
+    return (ax1,ax2)
 
-def plot_emission_line_ratio(table,mu,filename=None):
+
+def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     
     
     fig, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(6.974,6.974/2))
     
-    style = {'SNR':{"marker":'o',"ms":6,"mfc":'white',"mec":'tab:red','ls':'none','ecolor':'tab:red'},
-             'HII':{"marker":'+',"ms":6,"mec":'black','ls':'none'},
+    style = {'SNR':{"marker":'o',"ms":5,"mfc":'white',"mec":'tab:red','ls':'none','ecolor':'tab:red'},
+             'SNRorPN':{"marker":'o',"ms":5,"mfc":'white',"mec":'tab:green','ls':'none','ecolor':'tab:green'},
+             'HII':{"marker":'+',"ms":5,"mec":'black','ls':'none'},
              'PN':{"marker":'o',"ms":3,"mfc":'black','mec':'black','ls':'none','ecolor':'black'}
             }
 
@@ -128,6 +134,9 @@ def plot_emission_line_ratio(table,mu,filename=None):
     ax1.plot(MOIII,OIII_Ha,c='black',lw=0.6)
     ax1.axhline(10**4)
 
+    if completeness:
+        ax1.axvline(completeness-mu,ls='--',c='grey',lw=0.5)
+
     for t in ['HII','SNR','PN']:
         tbl = table[table['type']==t]
         ax1.errorbar(tbl['mOIII']-mu,tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),**style[t],label=t) 
@@ -135,8 +144,8 @@ def plot_emission_line_ratio(table,mu,filename=None):
         if t=='PN':
             # indicate for which PN we don't have a detection in HA6562
             tbl = tbl[~tbl['HA6562_detection']]
-            ax1.errorbar(tbl['mOIII']-mu,1.1*tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),
-                         marker='|',ms=10,mec='black',ls='none') 
+            ax1.errorbar(tbl['mOIII']-mu,1.07*tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),
+                         marker=r'$\uparrow$',ms=6,mec='black',ls='none') 
 
     #wax1.legend()
     
@@ -164,21 +173,25 @@ def plot_emission_line_ratio(table,mu,filename=None):
         if t=='PN':
             # indicate for which PN we don't have a detection in HA6562
             tbl = tbl[~tbl['SII6716_detection'] | ~tbl['HA6562_detection']]
-            ax2.errorbar(0.03+np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']),
-                         marker='_',ms=10,mec='black',ls='none') 
+            ax2.errorbar(0.02+np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']),
+                         marker=r'$\!\rightarrow$',ms=6,mec='black',ls='none') 
+
+    tbl = table[table['SNRorPN']]
+    ax1.errorbar(tbl['mOIII']-mu,tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']), marker='x',ms=3,mec='tab:red',ls='none') 
+    ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']), marker='x',ms=3,mec='tab:red',ls='none') 
 
     ax2.legend()
 
     ax2.axvline(np.log10(2.5),c='black',lw=0.6) 
     vert_SNR = np.array([[-0.1,-0.5],[-0.1,0.05],[0.3,0.25],[0.3,0.05],[0.1,-0.05],[0.1,-0.5]])
-    ax2.add_patch(mpl.patches.Polygon(vert_SNR,Fill=False,edgecolor='black'))
+    #ax2.add_patch(mpl.patches.Polygon(vert_SNR,Fill=False,edgecolor='black'))
     vert_SNR = np.array([[0.5,0.2],[0.5,0.7],[0.9,0.7],[0.9,0.2]])
-    ax2.add_patch(mpl.patches.Polygon(vert_SNR,Fill=False,edgecolor='black'))
-    ax2.plot([0.1,1.3],[-0.45,0.8],c='black',lw=0.6)
-    ax2.text(-0.1,-0.6,'SNR')
+    #ax2.add_patch(mpl.patches.Polygon(vert_SNR,Fill=False,edgecolor='black'))
+    #ax2.plot([0.1,1.3],[-0.45,0.8],c='black',lw=0.6)
+    #ax2.text(-0.1,-0.6,'SNR')
     
-    ax2.set(xlim=[-1,1.5],
-           ylim=[-1,1],
+    ax2.set(xlim=[-0.5,1.5],
+           ylim=[-0.2,1],
            #yscale='log',
            xlabel=r'$\log (\mathrm{H}\alpha$ / [SII])',
            ylabel=r'$\log (\mathrm{H}\alpha$ / [NII])')    
@@ -195,11 +208,45 @@ def plot_emission_line_ratio(table,mu,filename=None):
 
     if not final:
         plt.show()
-    
+
+importance = [
+'PNLF',
+'TRGB',
+'Cepheids',
+'SNIa',
+'SNII optical',
+'Tully-Fisher',  
+'Tully est',
+'Brightest Stars',
+'Grav. Stability Gas. Disk',
+'IRAS',
+'Ring Diameter',
+'Sosies',
+'Statistical',
+]
+importance = importance[::-1]
+
+colors = {
+'Brightest Stars':'#9c755f',
+'Cepheids':'#59a14e',
+'Grav. Stability Gas. Disk':'#76b7b2',
+'IRAS':'#ff9da7',
+'PNLF':'#edc949',
+'Ring Diameter':'#bab0ac',
+'SNII optical':'#4e79a7',
+'SNIa':'#76b7b2',
+'Sosies':'#9c755f',
+'Statistical':'#bab0ac',
+'TRGB':'#f28e2b',
+'Tully est':'#b07aa2',
+'Tully-Fisher':'#b07aa2'
+}
 
 def compare_distances(name,distance,plus,minus,filename=None):
     
-    
+    mpl.use('pgf')
+    mpl.rcParams['pgf.preamble'] = [r'\usepackage[hidelinks]{hyperref}', ]
+
     distances = ascii.read(basedir / 'data' / 'external' / f'{name}.csv')
     references = ascii.read(basedir / 'data' / 'external' / f'{name}ref.csv',encoding='utf8')
 
@@ -210,28 +257,15 @@ def compare_distances(name,distance,plus,minus,filename=None):
 
     distances['year'] = [int(row['Refcode'][:4]) for row in distances]
     distances['name'] = [references.loc[ref]['name'] for ref in distances['Refcode']]
+    base_url = 'https://ui.adsabs.harvard.edu/abs/'
+    distances['link'] = [f'\href{{{base_url + row["Refcode"]}}}{{{row["name"]}}}' for row in distances]
 
-    distances.sort(['Method','year'])
+    distances['sort_order'] = [importance.index(row['Method']) for row in distances]
+    distances.sort(['sort_order','year'])
     distances['y'] = np.arange(1,len(distances)+1)
 
     fig = plt.figure(figsize=(3.321,0.15*len(distances)))
     ax = fig.add_subplot(1,1,1)
-
-    colors = {
-     'Brightest Stars':'#9c755f',
-     'Cepheids':'#59a14e',
-     'Grav. Stability Gas. Disk':'#76b7b2',
-     'IRAS':'#ff9da7',
-     'PNLF':'#edc949',
-     'Ring Diameter':'#bab0ac',
-     'SNII optical':'#4e79a7',
-     'SNIa':'#76b7b2',
-     'Sosies':'#9c755f',
-     'Statistical':'#bab0ac',
-     'TRGB':'#f28e2b',
-     'Tully est':'#b07aa2',
-     'Tully-Fisher':'#b07aa2'
-    }
 
     ax.fill_betweenx(np.arange(0,len(distances)+2), distance-minus, distance+plus,facecolor=tab10[0], alpha=0.4)
     ax.fill_betweenx(np.arange(0,len(distances)+2), distance-3*minus, distance+3*plus,facecolor=tab10[0], alpha=0.1)
@@ -245,8 +279,11 @@ def compare_distances(name,distance,plus,minus,filename=None):
         method_ticks.append(np.mean(group['y']))
         ax.axhline(np.max(group['y'])+0.5,color='gray',lw=0.5)
 
+    #for row in distances:
+    #    ax.annotate(row['link'], (0, row['y']),fontsize=2,color='black')
+
     ax.set_yticks(distances['y'],minor=False)
-    ax.set_yticklabels(distances['name'])
+    ax.set_yticklabels(distances['link'])
     ax.set_xlabel(r'$(m-M)\ /\ \mathrm{mag}$')
     ax.set_ylim([0.5,len(distances)+0.5])
 

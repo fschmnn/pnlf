@@ -48,7 +48,7 @@ scatter.marker:    x
 
 pgf.texsystem:      pdflatex   
 text.usetex:        True
-pgf.preamble:       \usepackage{amsmath}
+pgf.preamble:       \usepackage{amsmath}, \usepackage{hyperref}
 
 # blank entrie inherit fonts from document
 font.family:     serif

@@ -89,12 +89,14 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     # define criterias to exclude non PN objects
     criteria = {}
     criteria[''] = 4 < np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])) 
-    criteria['HII'] = (np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])) < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'])
-    if SNR:
-        criteria['SNR'] = (table['HA6562'] / table['SII6716'] < 2.5)  & (table['HA6562_detection'] | table['SII6716_detection']) 
+    criteria['HII'] = (np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583'])) < -0.37*table['MOIII'] - 1.16) #& (table['HA6562_detection'])
+    criteria['SNR'] = ((table['HA6562']+table['HA6562_err']) / (table['SII6716']-table['SII6716_err']) < 2.5)# & (table['HA6562_detection'] | table['SII6716_detection']) 
 
     #criteria['SNR'] |= (table['v_SIGMA']>100)
     #criteria['cl'] = ~table['OIII5006_detection']
+
+    # objects that would be classified as PN by narrowband observations
+    table['SNRorPN'] = criteria['SNR'] & ~criteria['HII']
 
     for k in criteria.keys():
         table['type'][np.where(criteria[k])] = k
@@ -113,7 +115,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
 
     logger.info(f'{len(table[table["type"]==""])} objects classified as 4<log [OIII]/Ha')
     logger.info(f'{len(table[table["type"]=="HII"])} ({len(table[(table["type"]=="HII") & (table["mOIII"]<completeness_limit)])}) objects classified as HII')
-    logger.info(f'{len(table[(table["type"]=="SNR") | (table["type"]=="SNRpn")])} ({len(table[((table["type"]=="SNR")  | (table["type"]=="SNRpn") ) & (table["mOIII"]<completeness_limit)])}) objects classified as SNR')
+    logger.info(f'{len(table[table["type"]=="SNR"])} ({len(table[(table["type"]=="SNR") & (table["mOIII"]<completeness_limit)])}) objects classified as SNR')
     logger.info(f'{len(table[table["type"]=="PN"])} ({len(table[(table["type"]=="PN") & (table["mOIII"]<completeness_limit)])}) objects classified as PN')
     
     return table
@@ -353,7 +355,30 @@ class MaximumLikelihood1D:
         #for name,_x,_dx in zip(list(signature(self.func).parameters)[1:],self.x,self.dx):
         #    print(f'{name} = {_x:.3f} + {_dx[1]:.3f} - {_dx[0]:.3f} ')
         
-        return self.x
+        self.x_arr = np.linspace(self.x-1,self.x+1,1000)
+        self.evidence_arr   = np.exp([self.evidence(_) for _ in self.x_arr])
+        self.prior_arr      = np.array([self.prior(_) for _ in self.x_arr])
+        self.likelihood_arr = np.exp([-self.likelihood(_) for _ in self.x_arr])
+ 
+        valid = ~np.isnan(self.evidence_arr) &  ~np.isnan(self.likelihood_arr) 
+        self.evidence_arr   /= np.abs(np.trapz(self.evidence_arr[valid],self.x_arr [valid]))
+        self.prior_arr      /= np.abs(np.trapz(self.prior_arr[valid],self.x_arr [valid]))
+        self.likelihood_arr /= np.abs(np.trapz(self.likelihood_arr[valid],self.x_arr [valid]))
+
+        normalization = np.trapz(self.likelihood_arr,self.x_arr )
+        self.integral = np.array([np.trapz(self.likelihood_arr[self.x_arr<=xp],self.x_arr[self.x_arr<=xp])/normalization for xp in self.x_arr[1:]])
+       
+        # 1 sigma interval for cumulative likelihood
+        self.mid = np.argmin(np.abs(self.integral-0.5))
+        self.high = np.argmin(np.abs(self.integral-0.8415))
+        self.low = np.argmin(np.abs(self.integral-0.1585))
+
+        self.plus  = self.x_arr[self.high]-self.x
+        self.minus = self.x-self.x_arr[self.low]
+
+        logger.info(f'{self.x:.3f}+{self.plus:.3f}-{self.minus:.3f}')
+
+        return self.x,self.plus,self.minus
 
     def plot(self,limits=[]):
         '''plot the likelihood
@@ -364,65 +389,41 @@ class MaximumLikelihood1D:
 
         if not hasattr(self,'x'):
             logger.warning('run fit function first. I do it for you this time.')
-            self.fit(24)
-        
-
-        x = np.linspace(self.x-1,self.x+1,1000)
-        evidence   = np.exp([self.evidence(_) for _ in x])
-        prior      = np.array([self.prior(_) for _ in x])
-        likelihood = np.exp([-self.likelihood(_) for _ in x])
- 
-        valid = ~np.isnan(evidence) &  ~np.isnan(likelihood) 
-        evidence /= np.abs(np.trapz(evidence[valid],x[valid]))
-        prior /= np.abs(np.trapz(prior[valid],x[valid]))
-        likelihood /= np.abs(np.trapz(likelihood[valid],x[valid]))
-
-        normalization = np.trapz(likelihood,x)
-        integral = np.array([np.trapz(likelihood[x<=xp],x[x<=xp])/normalization for xp in x[1:]])
-       
-        # 1 sigma interval for cumulative likelihood
-        mid = np.argmin(np.abs(integral-0.5))
-        high = np.argmin(np.abs(integral-0.8415))
-        low = np.argmin(np.abs(integral-0.1585))
-
-        dp = x[high]-self.x
-        dm = self.x-x[low]
-
-        logger.info(f'{self.x:.3f}+{dp:.3f}-{dm:.3f}')
+            x,dp,dm=self.fit(24)
+        else:
+            x,dp,dm = self.x,self.plus,self.minus
         
         fig = figure(figsize=(8,6))
         ax1 = fig.add_subplot(2,1,1)
         ax2 = fig.add_subplot(2,1,2,sharex=ax1)
         ax1.tick_params(labelbottom=False)
 
-        ax1.plot(x,evidence,label='evidence',color='tab:green')
-        ax1.plot(x,prior,label='prior',color='tab:blue')
-        ax1.plot(x,likelihood,label='likelihood',color='tab:orange')
+        ax1.plot(self.x_arr,self.evidence_arr,label='evidence',color='tab:green')
+        ax1.plot(self.x_arr,self.prior_arr,label='prior',color='tab:blue')
+        ax1.plot(self.x_arr,self.likelihood_arr,label='likelihood',color='tab:orange')
         
         ax1.axvline(self.x,ls='--',c='k',lw=0.5)
-        ax1.axvline(x[low],ls='--',c='k',lw=0.5)
-        ax1.axvline(x[high],ls='--',c='k',lw=0.5)
+        ax1.axvline(self.x_arr[self.low],ls='--',c='k',lw=0.5)
+        ax1.axvline(self.x_arr[self.high],ls='--',c='k',lw=0.5)
         
         ax1.legend()
 
         ax1.set_ylabel('likelihood')
         ax2.set_xlabel('mu')
         
-
-        ax2.plot(x[1:],integral,label='cumulative likelihood',color='tab:orange')
+        ax2.plot(self.x_arr[1:],self.integral,label='cumulative likelihood',color='tab:orange')
         ax2.axvline(self.x,ls='--',c='k',lw=0.5)
         ax2.axhline(0.5,ls='--',c='k',lw=0.5)
 
         ax2.axhline(0.5+0.683/2,ls='--',c='k',lw=0.5)
         ax2.axhline(0.5-0.683/2,ls='--',c='k',lw=0.5)
-        ax2.axvline(x[low],ls='--',c='k',lw=0.5)
-        ax2.axvline(x[high],ls='--',c='k',lw=0.5)
+        ax2.axvline(self.x_arr[self.low],ls='--',c='k',lw=0.5)
+        ax2.axvline(self.x_arr[self.high],ls='--',c='k',lw=0.5)
         
         ax2.set_xlabel('mu')
         ax2.set_ylabel('cumulative likelihood')
         ax1.set_title(f'{self.x:.3f}+{dp:.3f}-{dm:.3f}')
 
-        return (self.x,dp,dm)
     
     def __call__(self,guess):
         '''use scipy minimize to find the best parameters'''
