@@ -12,13 +12,14 @@ from astropy.table import vstack               # combine multiple tables
 from astropy.stats import sigma_clipped_stats  # calcualte statistics of images
 from astropy.stats import gaussian_sigma_to_fwhm, gaussian_fwhm_to_sigma
 from astropy.coordinates import SkyCoord
+from astropy.visualization import simple_norm
 
 from photutils import DAOStarFinder            # DAOFIND routine to detect sources
 from photutils import IRAFStarFinder           # IRAF starfind routine to detect stars
 
 from collections import OrderedDict                           # make random table reproducable
 from photutils.datasets import make_gaussian_sources_image    # create table with mock sources
-from photutils import make_source_mask
+from photutils import make_source_mask, CircularAperture
 
 #from astropy.convolution import convolve, Gaussian2DKernel
 
@@ -91,7 +92,7 @@ def detect_unresolved_sources(
     # header for the print information
     logger.info(f'{"fwhm":>9}{"#N":>5}{"mean":>8}{"median":>8}{"std":>8}')
 
-    #mean, median, std = sigma_clipped_stats(data[~np.isnan(PSF)], sigma=2.,maxiters=None)
+    #mean, median, std = sigma_clipped_stats(data[~np.isnan(PSF)], sigma=3.,maxiters=None)
 
     try:
         PSF_correction = correct_PSF(line)
@@ -201,9 +202,11 @@ def completeness_limit(
     StarFinder,
     threshold,
     oversize=1.,
+    exclude_region=None,
     stars_per_mag=10,
     iterations=1,
     test_range=[26.5,29.5],
+    plot=False,
     **kwargs
     ): 
     '''determine completness limit 
@@ -233,7 +236,12 @@ def completeness_limit(
     err  = getattr(self,f'{line}_err').copy()
     PSF  = getattr(self,'PSF')
     tshape = data.shape
-    
+
+    if not np.any(exclude_region):
+        exclude_region = np.zeros(data.shape,dtype=bool)
+    else:
+        print(f'masking {np.sum(exclude_region)/np.prod(exclude_region.shape)*100:.2f} % of the image')
+
     #----------------------------------------------------------------
     # craete mock data
     #----------------------------------------------------------------
@@ -256,21 +264,56 @@ def completeness_limit(
             mock_sources[i*stars_per_mag:(i+1)*stars_per_mag]['magnitude'] = m
         mock_sources['flux'] = 10**(-(mock_sources['magnitude']+13.74)/2.5) *1e20
         
-        indices = np.empty((*data.shape,2),dtype=int) 
-        indices[...,0] = np.arange(data.shape[0])[:,None]
-        indices[...,1] = np.arange(data.shape[1])
-        indices = indices[~np.isnan(data)]
-        mock_sources['x_mean'], mock_sources['y_mean'] = np.transpose(indices[np.random.choice(len(indices),n_sources)])
+        # create a number of random points (more than we need because
+        # some will fall in unobserved areas)
+        f = 1.5 # create more points than we need 
+        while True:
+            # number we create is f * number of sources we want / 
+            # (observed area / total area ) 
+            N = f * n_sources / (np.sum(~np.isnan(PSF)) / np.prod(self.shape))
+            indices = np.random.uniform((0,0),self.shape,(int(N),2))
+            x_mean = indices[:,1]
+            y_mean = indices[:,0]
+            PSF_arr = np.array([PSF[int(y),int(x)] for x,y in zip(x_mean,y_mean)])
+            in_frame = ~np.isnan(PSF_arr)
+
+            x_mean  = x_mean[in_frame]
+            y_mean  = y_mean[in_frame]
+            PSF_arr = PSF_arr[in_frame]
+            
+            if len(x_mean) > n_sources:
+                x_mean = x_mean[:n_sources]
+                y_mean = y_mean[:n_sources]
+                PSF_arr = PSF_arr[:n_sources]
+                break
+            else:
+                # it might happen that more points fall in unobserved
+                # areas. In this case we have to repeat
+                f *=1.1
+        
+        mock_sources['x_mean'], mock_sources['y_mean'] = x_mean, y_mean
         # get PSF size at the generated position
-        mock_sources['x_stddev'] = PSF_correction * PSF[mock_sources['x_mean'],mock_sources['y_mean']] * gaussian_fwhm_to_sigma * oversize
+        mock_sources['x_stddev'] = PSF_correction * PSF_arr * gaussian_fwhm_to_sigma * oversize
         mock_sources['y_stddev'] = mock_sources['x_stddev']
         mock_sources['amplitude'] = mock_sources['flux'] / (mock_sources['x_stddev']*np.sqrt(2*np.pi))
 
         logger.info(f'{len(mock_sources)} mock sources created')
 
+        if plot:
+            fig = plt.figure(figsize=(6,6))
+            ax  = fig.add_subplot(111,projection=self.wcs)
+
+            norm = simple_norm(data,'linear',clip=False,max_percent=95)
+            ax.imshow(data,norm=norm,cmap=plt.cm.Blues_r,origin='lower')
+            len(mock_sources)
+            positions = np.transpose([mock_sources['x_mean'],mock_sources['y_mean']])
+            apertures = CircularAperture(positions, r=6)
+            apertures.plot(color='tab:red',lw=.2, alpha=1,ax=ax)
+            plt.show()
+
         mock_img = make_gaussian_sources_image(tshape,mock_sources)
         mock_img += data
-        
+
         logger.info('mock sources inserted into image')
         
         #----------------------------------------------------------------
@@ -278,15 +321,17 @@ def completeness_limit(
         #----------------------------------------------------------------
         for fwhm in np.unique(PSF[~np.isnan(PSF)]):
             # we create a mask for the current pointing (must be inverted)
-            mask = (PSF == fwhm) #& (~np.isnan(PSF))
-            source_mask = make_source_mask(data, nsigma=2, npixels=5, dilate_size=int(3*fwhm)) | ~mask
+            psf_mask = (PSF == fwhm) #& (~np.isnan(PSF))
+            source_mask = make_source_mask(data, nsigma=2, npixels=5, dilate_size=int(3*fwhm)) | ~psf_mask
             mean, median, std = sigma_clipped_stats(data, sigma=3.0,maxiters=None,mask=source_mask)
-            #print(f'mean={mean:.2f}, mediam={median:.2f}, std={std:.2f}')
             
-            finder = StarFinder(fwhm      = fwhm*PSF_correction*oversize, 
+            # initialize and run StarFinder (DAOPHOT or IRAF)
+            finder = StarFinder(fwhm      = fwhm * PSF_correction * oversize, 
                                 threshold = threshold*std,
                                 **daoargs)
-            peaks_part = finder(mock_img, mask=~mask)
+            peaks_part = finder(mock_img, mask=(~psf_mask | exclude_region))
+        
+
             if peaks_part:
                 #logger.info(f'fwhm={fwhm:.3f}: {len(peaks_part)} sources found')
                 if 'peak_tbl' in locals():
