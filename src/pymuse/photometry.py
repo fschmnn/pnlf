@@ -2,6 +2,8 @@ import logging              # use instead of print for more control
 from pathlib import Path    # filesystem related stuff
 import numpy as np          # numerical computations
 
+import re
+
 import matplotlib.pyplot as plt  # plot growth curve
 
 import astropy.units as u        # handle units
@@ -10,14 +12,17 @@ from astropy.coordinates import SkyCoord              # convert pixel to sky coo
 from astropy.table import vstack
 
 from astropy.stats import sigma_clipped_stats  # calcualte statistics of images
+from astropy.stats import SigmaClip
 from astropy.stats import gaussian_fwhm_to_sigma, gaussian_sigma_to_fwhm
+import astropy.units as u        # handle units
 
 from photutils import CircularAperture         # define circular aperture
 from photutils import CircularAnnulus          # define annulus
 from photutils import aperture_photometry      # measure flux in aperture
 
-from astropy.stats import SigmaClip
 from photutils import Background2D, MedianBackground, MMMBackground, SExtractorBackground
+
+from dust_extinction.parameter_averages import CCM89
 
 import scipy.optimize as optimization          # fit Gaussian to growth curve
 
@@ -29,7 +34,7 @@ basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
 
 
-def measure_flux(self,peak_tbl,alpha,lines=None,aperture_size=1.5,background='local'):
+def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,background='local'):
     '''
     measure flux for all lines in lines
     
@@ -207,7 +212,16 @@ def measure_flux(self,peak_tbl,alpha,lines=None,aperture_size=1.5,background='lo
         if 'flux' not in locals():
             flux = v[['id','xcenter','ycenter','fwhm']]
 
-        flux[k] = v['flux']
+        # correct for extinction
+        extinction_model = CCM89(Rv=Rv)
+        
+        wavelength = re.findall(r'\d{4}', k)
+        if len(wavelength) != 1:
+            logger.error('line name must contain wavelength as 4 digit number in angstrom')
+        wavelength = int(wavelength[0])
+        extinction = extinction_model.extinguish(wavelength*u.angstrom,Ebv=Ebv)
+        logger.info(f'lambda{wavelength}: Av={-2.5*np.log10(extinction):.2f}')
+        flux[k] = v['flux'] / extinction
         flux[f'{k}_apsum'] = v['aperture_sum']
         flux[f'{k}_apbkg'] = v['aperture_bkg']
         flux[f'{k}_err'] = v['aperture_sum_err']
