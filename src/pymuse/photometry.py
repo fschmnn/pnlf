@@ -83,10 +83,9 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         # make sure lines is a list
         lines = [lines] if not isinstance(lines, list) else lines
     
-        # check if all required lines exist
-        missing = set(lines) - set(self.lines)
-        if missing:
-            raise AttributeError(f'{self.name} has no attribute {", ".join(missing)}')
+        for line in lines:
+            if not hasattr(self,line):
+                raise AttributeError(f'{self.name} has no attribute {line}')
             
     logger.info(f'measuring fluxes in {self.name} for {len(peak_tbl)} sources')    
     
@@ -102,11 +101,15 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         # select data and error (copy in case we need to modify it)
         data  = getattr(self,f'{line}').copy()
         error = getattr(self,f'{line}_err').copy()
-        v_disp = np.sqrt(getattr(self,f'{line}_SIGMA')**2 - getattr(self,f'{line}_SIGMA_CORR')**2)
+        try:
+            v_disp = np.sqrt(getattr(self,f'{line}_SIGMA')**2 - getattr(self,f'{line}_SIGMA_CORR')**2)
+        except:
+            v_disp = np.zeros(data.shape) 
 
         # the fwhm varies slightly with wavelength
-        PSF_correction = correct_PSF(line)
-    
+        wavelength = int(re.findall(r'\d{4}', line)[0])
+        PSF_correction = correct_PSF(wavelength)
+
         if background == 'global':
             '''method global:
             We create a background image by excluding sources (sigma clipped). 
@@ -205,33 +208,42 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         
         # we need an empty table for the next line
         del flux
-      
+
+    # initialize extinction model
+    extinction_model = CCM89(Rv=Rv)
+    k = lambda lam: ext_model.evaluate(lam*u.angstrom,Rv) * Rv
+
     for k,v in out.items():
         
         # first we create the output table with 
         if 'flux' not in locals():
             flux = v[['id','xcenter','ycenter','fwhm']]
+            flux.rename_column('xcenter','x')
+            flux.rename_column('ycenter','y')
+            flux['x'] = flux['x'].value
+            flux['y'] = flux['y'].value
+            if hasattr(self,'Av'):
+                flux['Av'] = 0.44 * np.array([self.Av[int(row['y']),int(row['x'])] for row in flux])
+            else:
+                flux['Av'] = 0
 
-        # correct for extinction
-        extinction_model = CCM89(Rv=Rv)
-        
+        # correct for extinction        
         wavelength = re.findall(r'\d{4}', k)
         if len(wavelength) != 1:
             logger.error('line name must contain wavelength as 4 digit number in angstrom')
         wavelength = int(wavelength[0])
-        extinction = extinction_model.extinguish(wavelength*u.angstrom,Ebv=Ebv)
-        logger.info(f'lambda{wavelength}: Av={-2.5*np.log10(extinction):.2f}')
-        flux[k] = v['flux'] / extinction
+        extinction_mw = extinction_model.extinguish(wavelength*u.angstrom,Ebv=Ebv)
+        logger.info(f'lambda{wavelength}: Av={-2.5*np.log10(extinction_mw):.2f}')
+        extinction_int = extinction_model.extinguish(wavelength*u.angstrom,Av=flux['Av'])
+
+        flux[k] = v['flux'] / extinction_mw 
+        #flux[k][~np.isnan(extinction_int)] /= extinction_int[~np.isnan(extinction_int)]
+    
         flux[f'{k}_apsum'] = v['aperture_sum']
         flux[f'{k}_apbkg'] = v['aperture_bkg']
         flux[f'{k}_err'] = v['aperture_sum_err']
         flux[f'{k}_bkg'] = v['bkg_median']
         flux[f'{k}_SIGMA'] = v['SIGMA']
-
-    flux.rename_column('xcenter','x')
-    flux.rename_column('ycenter','y')
-    flux['x'] = flux['x'].value
-    flux['y'] = flux['y'].value
 
     logger.info('all flux measurements completed')
 
