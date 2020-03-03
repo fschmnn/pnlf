@@ -2,6 +2,7 @@ import logging              # use instead of print for more control
 import inspect              # get signature of functions (e.g. to pass kwargs)
 from pathlib import Path    # filesystem related stuff
 import numpy as np          # numerical computations
+import re
 
 import matplotlib.pyplot as plt
 
@@ -95,7 +96,8 @@ def detect_unresolved_sources(
     #mean, median, std = sigma_clipped_stats(data[~np.isnan(PSF)], sigma=3.,maxiters=None)
 
     try:
-        PSF_correction = correct_PSF(line)
+        wavelength =int(re.findall(r'\d{4}', line)[0])
+        PSF_correction = correct_PSF(wavelength)
     except:
         PSF_correction = 1
 
@@ -249,7 +251,8 @@ def completeness_limit(
     n_sources = len(apparent_magnitude) * stars_per_mag
     
     try:
-        PSF_correction = correct_PSF(line)
+        wavelength = int(re.findall(r'\d{4}', line)[0])
+        PSF_correction = correct_PSF(wavelength)
     except:
         PSF_correction = 1
 

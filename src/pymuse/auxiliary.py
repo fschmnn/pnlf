@@ -43,7 +43,7 @@ def search_table(table,string):
             mask[i]= True
     return  table[mask]
 
-correct_PSF = lambda lam: 1- 4.7e-5*(int(lam[-4:])-6450)
+correct_PSF = lambda lam: 1- 4.7e-5*(lam-6450)
 
 def fwhm_moffat(alpha,gamma):
     '''calculate the FWHM of a Moffat'''

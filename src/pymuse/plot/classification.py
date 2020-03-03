@@ -46,7 +46,7 @@ def classification_map(galaxy,parameters,tbl,filename):
     ax3.imshow(rgb)
 
     print(f'{len(table)} sources')
-    for t,c in zip(['HII','SNR','PN'],['black','red','white']):
+    for t,c in zip(['SNR','PN'],['tab:red','tab:orange']):
         
         sub = table[table['type']==t]
         print(f'{t:<3}: {len(sub):>3}')
@@ -56,7 +56,7 @@ def classification_map(galaxy,parameters,tbl,filename):
         apertures.plot(color=c,lw=.2, alpha=1,ax=ax2)
         apertures.plot(color=c,lw=.2, alpha=1,ax=ax3)
 
-    for row in table:
+    for row in table[table['type']!='HII']:
         txt,x,y = row['id'], row['x']+5, row['y']
         
         if x1<x<x2 and y1<y<y2:

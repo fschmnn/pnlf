@@ -15,7 +15,7 @@ basedir = Path(__file__).parent.parent.parent.parent
 tab10 = ['#e15759','#4e79a7','#f28e2b','#76b7b2','#59a14e','#edc949','#b07aa2','#ff9da7','#9c755f','#bab0ac']    
 
 def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
-              filename=None,color='tab:red',axes=None):
+              filename=None,color='tab:red',alpha=1,axes=None):
     '''Plot Planetary Nebula Luminosity Function
     
     
@@ -67,12 +67,12 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
         ax2 = fig.add_subplot(1,2,2)
     else:
         ax1,ax2 = axes 
-        
+
     # scatter plot
     ax1.errorbar(m[m<completeness],hist[m<completeness],yerr=err[m<completeness],
-                 marker='o',ms=6,mec=color,mfc=color,ls='none',ecolor=color)
+                 marker='o',ms=6,mec=color,mfc=color,ls='none',ecolor=color,alpha=alpha)
     ax1.errorbar(m[m>=completeness],hist[m>=completeness],yerr=err[m>completeness],
-                 marker='o',ms=6,mec=color,mfc='white',ls='none',ecolor=color)
+                 marker='o',ms=6,mec=color,mfc='white',ls='none',ecolor=color,alpha=alpha)
     ax1.plot(m_fine,binsize/binsize_fine*N*PNLF(bins_fine,mu=mu,mhigh=completeness),c=color,ls='dotted')
     #ax1.axvline(completeness,c='black',lw=0.2)
     #ax1.axvline(mu+Mmax,c='black',lw=0.2)
@@ -89,7 +89,7 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
     ax1.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.25))
 
     # cumulative
-    ax2.plot(m_fine[m_fine<=completeness],np.cumsum(hist_fine[m_fine<=completeness]),ls='none',mfc=color,mec=color,ms=4,marker='o')
+    ax2.plot(m_fine[m_fine<=completeness],np.cumsum(hist_fine[m_fine<=completeness]),ls='none',mfc=color,mec=color,ms=4,marker='o',alpha=alpha)
     ax2.plot(m_fine,N*np.cumsum(PNLF(bins_fine,mu=mu,mhigh=completeness)),ls='dotted',color=color)
 
     
@@ -109,15 +109,16 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
         #savefig(filename.with_suffix('.pgf'),bbox_inches='tight')
         savefig(filename.with_suffix('.pdf'),bbox_inches='tight')
 
-    if not final:
-        plt.show()
+    #if not final:
+    #plt.show()
 
     return (ax1,ax2)
 
 
 def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     
-    
+    Mmax = -4.47
+
     fig, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(6.974,6.974/2))
     
     style = {'SNR':{"marker":'o',"ms":5,"mfc":'white',"mec":'tab:red','ls':'none','ecolor':'tab:red'},
@@ -136,6 +137,8 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
 
     if completeness:
         ax1.axvline(completeness-mu,ls='--',c='grey',lw=0.5)
+    ax1.axvline(Mmax,ls='--',c='grey',lw=0.5)
+
 
     for t in ['HII','SNR','PN']:
         tbl = table[table['type']==t]
@@ -149,8 +152,8 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
 
     #wax1.legend()
     
-    ax1.set(xlim=[-5,-1],
-           ylim=[0.03,100],
+    ax1.set(xlim=[-5,np.ceil(completeness-mu+0.5)],
+           ylim=[0.03,200],
            yscale='log',
            xlabel=r'$M_{\mathrm{[OIII]}}$',
            ylabel=r'[OIII] / $(\mathrm{H}\alpha + \mathrm{[NII]})$')
@@ -176,7 +179,7 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
             ax2.errorbar(0.02+np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']),
                          marker=r'$\!\rightarrow$',ms=6,mec='black',ls='none') 
 
-    tbl = table[table['SNRorPN']]
+    tbl = table[table['SNRorPN'] & (table['type']=='SNR')]
     ax1.errorbar(tbl['mOIII']-mu,tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']), marker='x',ms=3,mec='tab:red',ls='none') 
     ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']), marker='x',ms=3,mec='tab:red',ls='none') 
 
