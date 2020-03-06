@@ -90,9 +90,6 @@ def detect_unresolved_sources(
     logger.info(f'searching for sources in {self.name} with [{line}] line map (using ' + \
           str(StarFinder).split('.')[-1][:-2] + ')\n' )
     
-    # header for the print information
-    logger.info(f'{"fwhm":>9}{"#N":>5}{"mean":>8}{"median":>8}{"std":>8}')
-
     #mean, median, std = sigma_clipped_stats(data[~np.isnan(PSF)], sigma=3.,maxiters=None)
 
     try:
@@ -102,12 +99,18 @@ def detect_unresolved_sources(
         PSF_correction = 1
 
     # loop over all pointings with different PSFs
-    for fwhm in np.unique(PSF[~np.isnan(PSF)]):
+    pointings = np.unique(PSF[~np.isnan(PSF)])
+    logger.info(f'searching for sources in {len(pointings)} pointings')
+    
+    # header for the print information
+    logger.info(f'{"fwhm":>9}{"#N":>5}{"mean":>8}{"median":>8}{"std":>8}')
+
+    for fwhm in pointings:
                 
         # we create a mask for the current pointing (must be inverted)
         psf_mask = (PSF == fwhm) #& (~np.isnan(PSF))
-        source_mask = make_source_mask(data, nsigma=2, npixels=5, dilate_size=int(3*fwhm)) | ~psf_mask
-        mean, median, std = sigma_clipped_stats(data, sigma=3.0,maxiters=None,mask=source_mask)
+        #source_mask = make_source_mask(data, nsigma=2, npixels=5, dilate_size=int(3*fwhm)) | ~psf_mask
+        mean, median, std = sigma_clipped_stats(data, sigma=3.0,maxiters=None,mask=~psf_mask)
         
         # initialize and run StarFinder (DAOPHOT or IRAF)
         finder = StarFinder(fwhm      = fwhm * PSF_correction * oversize, 
@@ -156,7 +159,6 @@ def detect_unresolved_sources(
                         f,format='fixed_width',overwrite=True)
 
     return peak_tbl
-
 
 def match_catalogues(matchcoord,catalogcoord):
     '''match elements between two catalogues by distance
@@ -311,7 +313,8 @@ def completeness_limit(
             len(mock_sources)
             positions = np.transpose([mock_sources['x_mean'],mock_sources['y_mean']])
             apertures = CircularAperture(positions, r=6)
-            apertures.plot(color='tab:red',lw=.2, alpha=1,ax=ax)
+            ax.scatter(mock_sources['x_mean'],mock_sources['y_mean'],color='tab:red')
+            #apertures.plot(color='tab:red',lw=.2, alpha=1,ax=ax)
             plt.show()
 
         mock_img = make_gaussian_sources_image(tshape,mock_sources)
@@ -391,3 +394,45 @@ def completeness_limit(
         mock_sources[col].info.format = '%.8g' 
 
     return mock_sources
+
+
+
+def guess_coordinate_column(columns,c1='x',c2='y'):
+    '''Guess coordinate coordinates from list of columns
+
+    Coordinate columns in table are usually named similar, with the 
+    difference being `x` and `y` or `1` and `2`. This function looks
+    for a pair of columns that differ only by the given character
+    c1 and c2.
+    
+    e.g. if two columns are named `x_cen` and `y_cen` they are identified.
+    
+    Parameters
+    ----------
+    
+    columns : list
+        A list of column names.
+    c1,c2 : str
+        Difference between the two coordinate columns
+    
+    
+    Returns 
+    -------
+    
+    (column1,column2) : str
+    '''
+    
+    matches = []
+    
+    for i, col1 in enumerate(columns):
+        for j, col2 in enumerate(columns[i+1:]):
+            
+            if col1.replace(c1,'') == col2.replace(c2,''):
+                matches.append((col1,col2))
+    
+    if len(matches) <1:
+        logger.warning('no match found')
+    elif len(matches) >1:
+        logger.warning('more than one possible match found')
+        
+    return matches

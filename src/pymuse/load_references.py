@@ -76,3 +76,5 @@ pn_NGC3627_ciardullo = ascii.read(basedir / 'data' / 'external' / 'Ciardullo_200
 pn_NGC3627_ciardullo['RA'] = list(map(string_to_ra,pn_NGC3627_ciardullo['RA']))
 pn_NGC3627_ciardullo['DEC'] = list(map(string_to_dec,pn_NGC3627_ciardullo['DEC']))
 pn_NGC3627_ciardullo['SkyCoord'] = SkyCoord(pn_NGC3627_ciardullo['RA'],pn_NGC3627_ciardullo['DEC'])
+
+pn_NGC3627 = pn_NGC3627_ciardullo 

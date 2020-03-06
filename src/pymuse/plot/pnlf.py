@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 
 import matplotlib as mpl
+from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.pyplot import figure, show, savefig
 import matplotlib.pyplot as plt
 
@@ -15,7 +16,7 @@ basedir = Path(__file__).parent.parent.parent.parent
 tab10 = ['#e15759','#4e79a7','#f28e2b','#76b7b2','#59a14e','#edc949','#b07aa2','#ff9da7','#9c755f','#bab0ac']    
 
 def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
-              filename=None,color='tab:red',alpha=1,axes=None):
+              filename=None,metadata=None,color='tab:red',alpha=1,axes=None):
     '''Plot Planetary Nebula Luminosity Function
     
     
@@ -40,6 +41,9 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
         Upper edge of the bins.
     '''
     
+    # sometimes the pgf backend crashes
+    mpl.use('agg')
+
     Mmax = -4.47
     
     # the fit is normalized to 1 -> multiply with number of objects
@@ -67,6 +71,7 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
         ax2 = fig.add_subplot(1,2,2)
     else:
         ax1,ax2 = axes 
+        fig = ax1.get_figure()
 
     # scatter plot
     ax1.errorbar(m[m<completeness],hist[m<completeness],yerr=err[m<completeness],
@@ -89,9 +94,10 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
     ax1.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.25))
 
     # cumulative
-    ax2.plot(m_fine[m_fine<=completeness],np.cumsum(hist_fine[m_fine<=completeness]),ls='none',mfc=color,mec=color,ms=4,marker='o',alpha=alpha)
+    #ax2.plot(m_fine[m_fine<=completeness],np.cumsum(hist_fine[m_fine<=completeness]),ls='none',mfc=color,mec=color,ms=4,marker='o',alpha=alpha)
+    data.sort()
+    ax2.plot(data,np.arange(1,len(data)+1,1),ls='none',mfc=color,mec=color,ms=2,marker='o',alpha=alpha)
     ax2.plot(m_fine,N*np.cumsum(PNLF(bins_fine,mu=mu,mhigh=completeness)),ls='dotted',color=color)
-
     
     # adjust plot    
     ax2.set_xlim([mlow,completeness+0.2])
@@ -108,9 +114,10 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
     if filename:
         #savefig(filename.with_suffix('.pgf'),bbox_inches='tight')
         savefig(filename.with_suffix('.pdf'),bbox_inches='tight')
-
-    #if not final:
-    #plt.show()
+        #with PdfPages(filename.with_suffix('.pdf')) as pdf:
+        #    pdf.savefig(fig,metadata= {'Creator': 'matplotlib', 'Author': 'FS', 'Title': 'NGC628'})
+    else:
+        plt.show()
 
     return (ax1,ax2)
 
@@ -152,7 +159,7 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
 
     #wax1.legend()
     
-    ax1.set(xlim=[-5,np.ceil(completeness-mu+0.5)],
+    ax1.set(xlim=[-5,np.ceil(completeness-mu)],
            ylim=[0.03,200],
            yscale='log',
            xlabel=r'$M_{\mathrm{[OIII]}}$',
@@ -203,7 +210,15 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     ax2.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.1))
     ax2.yaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.1))    
 
-    plt.tight_layout()
+    ax3 = ax1.twiny()
+    xlim1,xlim2 = ax1.get_xlim()
+    ax3.set_xticks(np.arange(np.ceil(xlim1+mu),np.floor(xlim2+mu)+1),minor=False)
+    ax3.set(xlim   = [xlim1+mu,xlim2+mu],
+            xlabel = r'$m_{\mathrm{[OIII]}}$')
+
+    plt.subplots_adjust(wspace=0.25)
+
+    #plt.tight_layout()
 
     if filename:
         #savefig(filename.with_suffix('.pgf'),bbox_inches='tight')
@@ -262,6 +277,22 @@ def compare_distances(name,distance,plus,minus,filename=None):
     distances['name'] = [references.loc[ref]['name'] for ref in distances['Refcode']]
     base_url = 'https://ui.adsabs.harvard.edu/abs/'
     distances['link'] = [f'\href{{{base_url + row["Refcode"]}}}{{{row["name"]}}}' for row in distances]
+
+
+    # ugly workaround 
+    # some papers publish more than one distance. We use only the one with the smallest uncertainty
+    remove = []
+    for i,row in enumerate(distances):
+
+        name = row['name']
+        sub = distances[np.where(distances['name']==name)]
+        if len(sub) > 1:
+            if row['err(m-M)'] > np.min(sub['err(m-M)']):
+                remove.append(i)
+    remove.sort(reverse=True)
+    for i in remove:
+        distances.remove_row(i)
+
 
     distances['sort_order'] = [importance.index(row['Method']) for row in distances]
     distances.sort(['sort_order','year'])

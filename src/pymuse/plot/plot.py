@@ -151,7 +151,7 @@ def radial_profile(data, center):
     radialprofile = tbin / nr
     return radialprofile
  
-def single_cutout(self,x,y,size=32):
+def single_cutout(self,x,y,size=32,aperture_size=None,percentile=99):
     '''create cutouts of a single sources and plot it'''
     
     extension = 'OIII5006'
@@ -170,7 +170,7 @@ def single_cutout(self,x,y,size=32):
 
     #rgb = create_RGB(r,g,b,percentile=99)
 
-    rgb = create_RGB(self.SII6716,self.HA6562,self.OIII5006,percentile=99)
+    rgb = create_RGB(self.HA6562,self.OIII5006,self.SII6716,percentile=percentile)
     #rgb = Cutout2D(rgb,(x,y),size,wcs=wcs).data
 
     fig = figure(figsize=(2*6.974,2*6.974/3))
@@ -181,8 +181,15 @@ def single_cutout(self,x,y,size=32):
     ax3 = fig.add_subplot(1,3,3)
     
     norm = simple_norm(data,percent=99,clip=False)#, percent=99.)
-    im1 = ax1.imshow(data[int(y-size/2):int(y+size/2),int(x-size/2):int(x+size/2)], norm=norm, origin='lower', cmap='Blues_r')
-    im2 = ax2.imshow(rgb[int(y-size/2):int(y+size/2),int(x-size/2):int(x+size/2),:],origin='lower')
+    yslice = slice(int(x-size/2),int(x+size/2))
+    xslice = slice(int(y-size/2),int(y+size/2))
+    im1 = ax1.imshow(data[xslice,yslice], norm=norm, origin='lower', cmap='Greens')
+    im2 = ax2.imshow(rgb[xslice,yslice,:],origin='lower')
+
+    if aperture_size:
+        aperture = CircularAperture((x,y),aperture_size)
+        aperture.plot(color='tab:red',lw=0.8,ax=ax1)
+        aperture.plot(color='tab:red',lw=0.8,ax=ax2)
 
     #ax1.set_xlim([x-size/2,x+size/2])
     #ax1.set_ylim([y-size/2,y+size/2])
@@ -201,7 +208,7 @@ def single_cutout(self,x,y,size=32):
     return rgb
 
 
-def create_RGB(r,g,b,percentile=95):
+def create_RGB(r,g,b,weights=None,percentile=95):
     '''combie three arrays to one RGB image
     
     Parameters
@@ -230,10 +237,19 @@ def create_RGB(r,g,b,percentile=95):
     # create an empty array with teh correct size
     rgb = np.empty((*r.shape,3))
     
+    if type(percentile)==float or type(percentile)==int:
+        percentile = 3*[percentile]
+
     # assign the input arrays to the 3 channels and normalize them to 1
-    rgb[...,0] = r / np.nanpercentile(r,percentile)
-    rgb[...,1] = g / np.nanpercentile(g,percentile)
-    rgb[...,2] = b / np.nanpercentile(b,percentile)
+    rgb[...,0] = r / np.nanpercentile(r,percentile[0])
+    rgb[...,1] = g / np.nanpercentile(g,percentile[1])
+    rgb[...,2] = b / np.nanpercentile(b,percentile[2])
+    if weights:
+        rgb[...,0] *= weights[0]
+        rgb[...,1] *= weights[1]
+        rgb[...,2] *= weights[2]
+
+    #rgb /= np.nanpercentile(rgb,percentile)
     
     # clip values (we use percentile for the normalization) and fill nan
     rgb = np.clip(np.nan_to_num(rgb,nan=1),a_min=0,a_max=1)

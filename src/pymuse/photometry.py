@@ -34,7 +34,7 @@ basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
 
 
-def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,background='local'):
+def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,background='local',extinction='MW'):
     '''
     measure flux for all lines in lines
     
@@ -213,6 +213,13 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
     extinction_model = CCM89(Rv=Rv)
     k = lambda lam: ext_model.evaluate(lam*u.angstrom,Rv) * Rv
 
+    if extinction == 'all':
+        logger.info(f'correcting for internal and MW-extinction')
+    elif extinction == 'MW':
+         logger.info(f'correcting for MW-extinction')
+    elif extinction != None:
+        logger.warning(f'unkown extinction {extinction}')
+
     for k,v in out.items():
         
         # first we create the output table with 
@@ -236,9 +243,12 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         logger.info(f'lambda{wavelength}: Av={-2.5*np.log10(extinction_mw):.2f}')
         extinction_int = extinction_model.extinguish(wavelength*u.angstrom,Av=flux['Av'])
 
-        flux[k] = v['flux'] / extinction_mw 
-        #flux[k][~np.isnan(extinction_int)] /= extinction_int[~np.isnan(extinction_int)]
-    
+        flux[k] = v['flux'] 
+        if extinction == 'MW' or extinction=='all':
+            flux[k] /= extinction_mw 
+        if extinction == 'all':
+            flux[k][~np.isnan(extinction_int)] /= extinction_int[~np.isnan(extinction_int)]
+
         flux[f'{k}_apsum'] = v['aperture_sum']
         flux[f'{k}_apbkg'] = v['aperture_bkg']
         flux[f'{k}_err'] = v['aperture_sum_err']

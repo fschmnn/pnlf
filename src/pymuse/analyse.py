@@ -63,6 +63,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     table = table.copy()
 
     logger.info(f'{len(table)} entries in initial catalogue')
+    logger.info(f'using mu={distance_modulus}')
 
     # make sure that the new column can save strings with 3 characters
     table['type'] = np.empty(len(table),dtype='U3')
@@ -73,7 +74,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
         # median of error maps is a factor of 3 smaller than std of maps
         detection = (table[col]>0) & (table[col]>9*table[f'{col}_err'])
         logger.info(f'{np.sum(~detection)} not detected in {col}')
-        table[col][np.where(table[col]<0)] = 0
+        table[col][np.where(table[col]<0)] = table[f'{col}_err'][np.where(table[col]<0)] 
         #table[col][np.where(~detection)] = 3 * table[f'{col}_err'][np.where(~detection)] 
         table[f'{col}_detection'] = detection
 

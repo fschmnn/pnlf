@@ -42,9 +42,11 @@ def classification_map(galaxy,parameters,tbl,filename):
     # ============================================================
 
     from pymuse.plot.plot import create_RGB
-    rgb = create_RGB(galaxy.HA6562,galaxy.OIII5006,galaxy.SII6716,percentile=97)
+    #rgb = create_RGB(galaxy.HA6562,galaxy.OIII5006,galaxy.SII6716,percentile=97)
+    rgb = create_RGB(galaxy.HA6562,galaxy.OIII5006_DAP,galaxy.SII6716,weights=[0.8,1,0.9],percentile=[97,97,97])
 
-    table = tbl[tbl['mOIII']<galaxy.completeness_limit]
+    table = tbl
+    #table = tbl[tbl['mOIII']<galaxy.completeness_limit]
 
     fig = plt.figure(figsize=(6.974,6.974/2))
     ax1 = fig.add_subplot(131,projection=wcs)
@@ -54,8 +56,8 @@ def classification_map(galaxy,parameters,tbl,filename):
     #fig, (ax2,ax3,ax1) = plt.subplots(ncols=3,figsize=(6.974,6.974/2),subplot_kw={'projection':wcs})
 
 
-    norm = simple_norm(galaxy.OIII5006,'linear',clip=False,max_percent=95,min_percent=10)
-    ax1.imshow(galaxy.OIII5006,norm=norm,cmap=plt.cm.Greens)
+    norm = simple_norm(galaxy.OIII5006_DAP,'linear',clip=False,max_percent=95)
+    ax1.imshow(galaxy.OIII5006_DAP,norm=norm,cmap=plt.cm.Greens)
 
     norm = simple_norm(galaxy.HA6562,'linear',clip=False,max_percent=95)
     ax2.imshow(galaxy.HA6562,norm=norm,cmap=plt.cm.Reds)
@@ -70,8 +72,8 @@ def classification_map(galaxy,parameters,tbl,filename):
         positions = np.transpose([sub['x'],sub['y']])
         apertures = CircularAperture(positions, r=6)
         #ax1.scatter(sub['x'],sub['y'],marker='o',s=5,lw=0.4,edgecolor=c,facecolors='none')
-        apertures.plot(color=c,lw=.4, alpha=1,ax=ax1)
-        apertures.plot(color=c,lw=.4, alpha=1,ax=ax2)
+        apertures.plot(color=c,lw=.2, alpha=1,ax=ax1)
+        apertures.plot(color=c,lw=.2, alpha=1,ax=ax2)
         apertures.plot(color=c,lw=.4, alpha=1,ax=ax3)
 
     '''
@@ -86,6 +88,7 @@ def classification_map(galaxy,parameters,tbl,filename):
     
     # first we create a legend with three invisible handles
     labels=['HA6562','OIII5006','SII6716']
+    labels=[r'H$\alpha$',r'[OIII]',r'[SII]']
     handles = 3*[mpl.patches.Rectangle((0, 0), 0, 0, alpha=0.0)]
     leg = ax3.legend(handles,labels, frameon=True,framealpha=0.7,handlelength=0,prop={'size': 6},loc=3)
 
@@ -99,8 +102,13 @@ def classification_map(galaxy,parameters,tbl,filename):
     ax3.set_xlim([x,x+width])
     ax3.set_ylim([y,y+height])
 
-    ax1.set_title(r'O[III]')
-    ax2.set_title(r'$\mathrm{H}\alpha$')
+    ax1.set(title=r'O[III]',
+            xlabel='R.A. (J2000)',
+            ylabel='Dec. (J2000)')
+
+    ax2.set(title=r'$\mathrm{H}\alpha$',
+            xlabel='R.A. (J2000)')
+            
     ax3.set_xticks([])
     ax3.set_yticks([])
     ax3.set_title('RGB')
@@ -112,7 +120,7 @@ def classification_map(galaxy,parameters,tbl,filename):
     ax2.coords[0].set_ticks(number=3)
     ax2.coords[1].set_ticklabel_visible(False)
 
-    plt.subplots_adjust(wspace=-0.4)
+    #plt.subplots_adjust(wspace=-0.4)
 
     # it is a bit tricky to get the coordinates right (because data uses the wcs coordinates)
     # the easiest thing is to use fractions from the figure size
