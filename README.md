@@ -2,18 +2,6 @@
 
 A Python package to manipulate, analyze and plot MUSE data. The name is preliminary and will be changed later to avoid confusion with the existing [PyMUSE](https://github.com/ismaelpessa/PyMUSE) package.
 
-## ToDo
-
-
-
-* [ ] Prior distances from NED/NASA
-
-* [ ] reiterate classification/fit until it converges  
-
-* [ ] Bayes approach for MLE
-
-  
-
 
 
 ## Description

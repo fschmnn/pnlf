@@ -289,6 +289,13 @@ def growth_curve(data,x,y,model,rmax=30,plot=False,**kwargs):
     annulus_data_1d = annulus_data[mask.data > 0]
     _, bkg_median, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],maxiters=None)
 
+    if np.isnan(bkg_median):
+        logger.warning('background contains NaN')
+        if model == 'moffat':
+            return np.array([np.inf,np.inf]), np.atleast_1d(np.inf)
+        else:
+            return np.array([np.inf]), np.atleast_1d(np.inf)        
+
     # -----------------------------------------------------------------
     # measure flux for different aperture radii
     # -----------------------------------------------------------------
@@ -299,7 +306,7 @@ def growth_curve(data,x,y,model,rmax=30,plot=False,**kwargs):
     r = 0.5
     while True:
         if r > rmax:
-            logger.warning(f'no convergence within a radius of {rmax}')
+            logger.debug(f'no convergence within a radius of {rmax:.2f}')
             break
 
         aperture = CircularAperture((x,y), r=r)
@@ -315,6 +322,12 @@ def growth_curve(data,x,y,model,rmax=30,plot=False,**kwargs):
     radius = np.array(radius)
     flux = np.array(flux)   
     flux = flux/flux[-1]
+
+    if np.any(np.isnan(flux)):
+        if model == 'moffat':
+            return np.array([np.inf,np.inf]), np.atleast_1d(np.inf)
+        else:
+            return np.array([np.inf]), np.atleast_1d(np.inf)
 
     # -----------------------------------------------------------------
     # fit moffat or gaussian
@@ -334,20 +347,32 @@ def growth_curve(data,x,y,model,rmax=30,plot=False,**kwargs):
         func = light_in_gaussian
         fit,sig = optimization.curve_fit(func, radius,flux , guess)
         fwhm = fit[0]
+    
     else:
         raise TypeError('model must be `moffat` or `gaussian`')
 
     
     if plot:
-        p = plt.plot(radius,flux,label='observed')
-        plt.plot(radius,func(radius,*fit),label='fit',ls='--',color=p[0].get_color())
+        from astropy.visualization import simple_norm
+
+        fig = plt.figure(figsize=(6.9,6.9/2))
+        ax1 = fig.add_subplot(121)
+        ax2 = fig.add_subplot(122)
+
+        norm = simple_norm(data,percent=99,clip=False)#, percent=99.)
+        yslice = slice(int(x-rmax/2),int(x+rmax/2))
+        xslice = slice(int(y-rmax/2),int(y+rmax/2))
+        im1 = ax1.imshow(data[xslice,yslice], norm=norm, origin='lower', cmap='Greens')
+
+        p = ax2.plot(radius,flux,label='observed')
+        ax2.plot(radius,func(radius,*fit),label='fit',ls='--',color=p[0].get_color())
 
         plt.xlabel('radius in px')
         plt.ylabel('light in aperture')
-        #plt.legend()
+        plt.legend()
         plt.grid()
 
-    return fit
+    return fit,sig
 
 
 

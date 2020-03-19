@@ -83,12 +83,14 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
 
     # calculate velocity dispersion
     table['v_SIGMA'] = table['OIII5006_SIGMA']
+    '''
     better_HA_signal = np.where(table['HA6562']/table['HA6562_err'] > table['OIII5006']/table['OIII5006_err'])
     better_SII_signal = np.where(table['SII6716']/table['SII6716_err'] > table['OIII5006']/table['OIII5006_err'])
     table['v_SIGMA'][better_HA_signal] = table[better_HA_signal]['HA6562_SIGMA']
     table['v_SIGMA'][better_SII_signal] = table[better_SII_signal]['SII6716_SIGMA']
     logger.info('v_sigma: median={:.2f}, median={:.2f}, sig={:.2f}'.format(*sigma_clipped_stats(table['v_SIGMA'][~np.isnan(table['v_SIGMA'])])))
-
+    '''
+    
     table['R']  =  np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583']))
     table['dR'] = np.sqrt((table['OIII5006_err'] / table['OIII5006'])**2 + (table['HA6562_err'] / (table['HA6562']+table['NII6583']))**2 + (table['NII6583_err'] / (table['HA6562']+table['NII6583']))**2) /np.log(10) 
 
@@ -97,7 +99,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     criteria[''] = (4 <table['R']-table['dR']) #& (table['HA6562_detection'])
     criteria['HII'] = (table['R'] + table['dR'] < -0.37*table['MOIII'] - 1.16) #& (table['HA6562_detection'] | table['NII6583_detection'])
     criteria['SNR'] = ((table['HA6562']) / (table['SII6716']) < 2.5)  & (table['SII6716_detection']) 
-    criteria['SNR'] |= (table['v_SIGMA']>100)
+    #criteria['SNR'] |= (table['v_SIGMA']>100)
 
     # objects that would be classified as PN by narrowband observations
     table['SNRorPN'] = criteria['SNR'] & ~criteria['HII']
@@ -508,4 +510,7 @@ def PNLF(bins,mu,mhigh,Mmax=-4.47):
     #out = normalization * (np.exp(2.693*mu + 3.*Mmax) * (-0.371333/np.exp(2.693*lower)) + 0.371333/np.exp(2.693*upper)) + (-3.25733*np.exp(0.307*lower) + 3.25733*np.exp(0.307*upper))/np.exp(0.307*mu)
     out = normalization * (F(upper,mu,Mmax=Mmax) - F(lower,mu,Mmax=Mmax))
     out[out<0] = 0
+
     return out
+
+

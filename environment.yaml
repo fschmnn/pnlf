@@ -7,13 +7,18 @@ dependencies:
   - python>=3.7
   - pip
   - astropy
+  - astroquery
+  - corner
+  - dust_extinction
+  - emcee
   - numpy
   - photutils
   - scipy
+  - speclite
+  - spectral-cube
   - pandas
   - ipython
   - matplotlib
-  - extinction
   - pip:
   # add here only pip-packages that are not available in conda/conda-forge! E.g.:
   # for development only (could also be kept in a separate environment file)

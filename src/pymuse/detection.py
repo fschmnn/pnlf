@@ -27,6 +27,8 @@ from photutils import make_source_mask, CircularAperture
 from .io import ReadLineMaps
 from .auxiliary import correct_PSF
 
+from .constants import tab10, single_column, two_column
+
 basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
 
@@ -380,9 +382,9 @@ def completeness_limit(
     #----------------------------------------------------------------
     # create the histogram
     #----------------------------------------------------------------
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(single_column,single_column/1.618))
     ax.axhline(80,color='black')
-    ax.bar(apparent_magnitude,hist/stars_per_mag*100/iterations,width=0.4)
+    ax.bar(apparent_magnitude,hist/stars_per_mag*100/iterations,width=0.4,color=tab10[0])
     ax.set(xlabel='m$_{[\mathrm{OIII}]}$',
            ylabel='detected sources in %',
            ylim=[0,100])
