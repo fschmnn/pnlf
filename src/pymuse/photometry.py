@@ -101,33 +101,25 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         # select data and error (copy in case we need to modify it)
         data  = getattr(self,f'{line}').copy()
         error = getattr(self,f'{line}_err').copy()
+        
         try:
             v_disp = np.sqrt(getattr(self,f'{line}_SIGMA')**2 - getattr(self,f'{line}_SIGMA_CORR')**2)
         except:
+            logger.warning('no maps with velocity dispersion for ' + line)
             v_disp = np.zeros(data.shape) 
 
         # the fwhm varies slightly with wavelength
         wavelength = int(re.findall(r'\d{4}', line)[0])
         PSF_correction = correct_PSF(wavelength)
 
-        if background == 'global':
-            '''method global:
-            We create a background image by excluding sources (sigma clipped). 
-            The resulting background is then subtracted from the data.
-            '''
-            sigma_clip = SigmaClip(sigma=3.,maxiters=None)
-            bkg_estimator = SExtractorBackground()
-            mask = np.isnan(data)
-            box_size = (40,40)
-            filter_size = (5,5)
-
-            bkg = Background2D(data, box_size, 
-                            filter_size=filter_size,
-                            sigma_clip=sigma_clip, 
-                            bkg_estimator=bkg_estimator,
-                            mask=mask).background
-            bkg[mask] = np.nan
-            data -= bkg
+        # calculate a global background map
+        mask = np.isnan(data)
+        bkg = Background2D(data,(10,10), 
+                        #filter_size=(15,15),
+                        sigma_clip= None,#SigmaClip(sigma=3.,maxiters=None), 
+                        bkg_estimator=MedianBackground(),
+                        mask=mask).background
+        bkg[mask] = np.nan
 
         '''
         loop over the individual pointings (they have different fwhm)
@@ -139,6 +131,8 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
             gamma = fwhm * PSF_correction / (2*np.sqrt(2**(1/alpha)-1))
 
+            if aperture_size > 3:
+                logger.warning('aperture > 3 FWHM')
             r = aperture_size * fwhm / 2 * PSF_correction 
             aperture = CircularAperture(positions, r=r)
 
@@ -148,38 +142,37 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
                                        error = error,
                                       )
 
-            if background == 'local':
-                # the local background subtraction estimates the background for 
-                # each source individually 
-                if aperture_size > 3:
-                    logger.warning('aperture > 3 FWHM')
-                r_in  = 5 * fwhm / 2  * PSF_correction
-                r_out = 1.*np.sqrt(3*r**2+r_in**2)
-                annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
-                annulus_masks = annulus_aperture.to_mask(method='center')
-                
-                bkg_median = []
-                for mask in annulus_masks:
-                    # select the pixels inside the annulus and calulate sigma clipped median
-                    annulus_data = mask.multiply(data)
-                    annulus_data_1d = annulus_data[mask.data > 0]
-                    _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=5,maxiters=None)          
-                    bkg_median.append(median_sigclip)
+            # calculate background in this aperture (from global map)
+            phot['bkg_global'] = aperture_photometry(bkg, aperture)['aperture_sum']
 
-                # save bkg_median in case we need it again
-                phot['bkg_median'] = np.array(bkg_median) 
-                # multiply background with size of the aperture
-                phot['aperture_bkg'] = phot['bkg_median'] * aperture.area
+            # the local background subtraction estimates the background for 
+            # each source individually 
+            r_in  = 5 * fwhm / 2  * PSF_correction
+            r_out = 1.*np.sqrt(3*r**2+r_in**2)
+            annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
+            annulus_masks = annulus_aperture.to_mask(method='center')
 
-                # we don't subtract the background from OIII because there is none
-                if line == 'OIII5006_DAP':
-                    phot['flux'] = phot['aperture_sum']
-                else:
-                    phot['flux'] = phot['aperture_sum'] - phot['aperture_bkg']
-            
-            else:
-                # in case of the global background, bkg is already subtracted
+            bkg_median = []
+            for mask in annulus_masks:
+                # select the pixels inside the annulus and calulate sigma clipped median
+                annulus_data = mask.multiply(data)
+                annulus_data_1d = annulus_data[mask.data > 0]
+                _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=3,maxiters=None)          
+                bkg_median.append(median_sigclip)
+
+            # save bkg_median in case we need it again
+            phot['bkg_median'] = np.array(bkg_median) 
+            # multiply background with size of the aperture
+            phot['bkg_local'] = phot['bkg_median'] * aperture.area
+
+            # we don't subtract the background from OIII because there is none
+            if line == 'OIII5006_DAP':
                 phot['flux'] = phot['aperture_sum']
+            else:
+                if background == 'local':
+                    phot['flux'] = phot['aperture_sum'] - phot['bkg_local']
+                else:
+                    phot['flux'] = phot['aperture_sum'] - phot['bkg_global']
 
             # calculate the average of the velocity dispersion
             aperture = CircularAperture(positions, r=fwhm)
@@ -220,6 +213,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
     elif extinction != None:
         logger.warning(f'unkown extinction {extinction}')
 
+    # so far we have an individual table for each emission line
     for k,v in out.items():
         
         # first we create the output table with 
@@ -227,9 +221,10 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
             flux = v[['id','xcenter','ycenter','fwhm']]
             flux.rename_column('xcenter','x')
             flux.rename_column('ycenter','y')
-            flux['x'] = flux['x'].value
+            flux['x'] = flux['x'].value         # we don't want them to be in pixel units
             flux['y'] = flux['y'].value
             if hasattr(self,'Av'):
+                # if the galaxy has an associated Av map we can correct for internal extinction
                 flux['Av'] = 0.44 * np.array([self.Av[int(row['y']),int(row['x'])] for row in flux])
             else:
                 flux['Av'] = 0
@@ -249,9 +244,10 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         if extinction == 'all':
             flux[k][~np.isnan(extinction_int)] /= extinction_int[~np.isnan(extinction_int)]
 
-        flux[f'{k}_apsum'] = v['aperture_sum']
-        flux[f'{k}_apbkg'] = v['aperture_bkg']
         flux[f'{k}_err'] = v['aperture_sum_err']
+        flux[f'{k}_bkg_local'] = v['bkg_local']
+        flux[f'{k}_bkg_global'] = v['bkg_global']
+        flux[f'{k}_aperture_sum'] = v['aperture_sum']
         flux[f'{k}_bkg'] = v['bkg_median']
         flux[f'{k}_SIGMA'] = v['SIGMA']
 
