@@ -121,6 +121,11 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
                         mask=mask).background
         bkg[mask] = np.nan
 
+        from astropy.convolution import convolve, Gaussian2DKernel, Box2DKernel
+
+        kernel = Box2DKernel(10) #Gaussian2DKernel(10) 
+        bkg_convolve = convolve(data,kernel,nan_treatment='interpolate',preserve_nan=True)
+
         '''
         loop over the individual pointings (they have different fwhm)
         '''
@@ -144,6 +149,8 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
             # calculate background in this aperture (from global map)
             phot['bkg_global'] = aperture_photometry(bkg, aperture)['aperture_sum']
+            phot['bkg_convolve'] = aperture_photometry(bkg_convolve, aperture)['aperture_sum']
+
 
             # the local background subtraction estimates the background for 
             # each source individually 
@@ -172,7 +179,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
                 if background == 'local':
                     phot['flux'] = phot['aperture_sum'] - phot['bkg_local']
                 else:
-                    phot['flux'] = phot['aperture_sum'] - phot['bkg_global']
+                    phot['flux'] = phot['aperture_sum'] - phot['bkg_convolve']
 
             # calculate the average of the velocity dispersion
             aperture = CircularAperture(positions, r=fwhm)
@@ -247,6 +254,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         flux[f'{k}_err'] = v['aperture_sum_err']
         flux[f'{k}_bkg_local'] = v['bkg_local']
         flux[f'{k}_bkg_global'] = v['bkg_global']
+        flux[f'{k}_bkg_convole'] = v['bkg_convolve']
         flux[f'{k}_aperture_sum'] = v['aperture_sum']
         flux[f'{k}_bkg'] = v['bkg_median']
         flux[f'{k}_SIGMA'] = v['SIGMA']
