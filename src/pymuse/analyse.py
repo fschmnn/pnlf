@@ -1,7 +1,8 @@
 import logging              # use instead of print for more control
 from pathlib import Path    # filesystem related stuff
 import numpy as np          # numerical computations
-from matplotlib.pyplot import figure
+from matplotlib.pyplot import subplots, figure, savefig
+import matplotlib.pyplot as plt
 
 from astropy.stats import sigma_clipped_stats  # calcualte statistics of images
 from astropy.table import Table
@@ -9,6 +10,9 @@ from astropy.table import Table
 from scipy.optimize import minimize
 from scipy.integrate import quad
 from inspect import signature
+
+from .constants import single_column,two_column,tab10
+from .old import MaximumLikelihood
 
 logger = logging.getLogger(__name__)
 
@@ -72,24 +76,30 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     # if the flux is smaller than the error we set it to the error
     for col in ['OIII5006','HA6562','NII6583','SII6716']:
         # median of error maps is a factor of 3 smaller than std of maps
-        detection = (table[col]>0) & (table[col]>9*table[f'{col}_err'])
+        detection = (table[col]>0) & (table[col]>3*table[f'{col}_err'])
         logger.info(f'{np.sum(~detection)} not detected in {col}')
         table[col][np.where(table[col]<0)] = table[f'{col}_err'][np.where(table[col]<0)] 
-        #table[col][np.where(~detection)] = 3 * table[f'{col}_err'][np.where(~detection)] 
+        #table[col][np.where(~detection)] = table[f'{col}_err'][np.where(~detection)] 
         table[f'{col}_detection'] = detection
 
     # calculate the absolute magnitude based on a first estimate of the distance modulus 
     table['MOIII'] = table['mOIII'] - distance_modulus
 
-    # calculate velocity dispersion
-    table['v_SIGMA'] = table['OIII5006_SIGMA']
-    '''
-    better_HA_signal = np.where(table['HA6562']/table['HA6562_err'] > table['OIII5006']/table['OIII5006_err'])
-    better_SII_signal = np.where(table['SII6716']/table['SII6716_err'] > table['OIII5006']/table['OIII5006_err'])
-    table['v_SIGMA'][better_HA_signal] = table[better_HA_signal]['HA6562_SIGMA']
-    table['v_SIGMA'][better_SII_signal] = table[better_SII_signal]['SII6716_SIGMA']
+    # calculate velocity dispersion (use line with best signal to noise)
+    table['OIII5006_S/N'] =  table['OIII5006']/table['OIII5006_err']
+    table['HA6562_S/N']   =  table['HA6562']/table['HA6562_err']
+    table['SII6716_S/N']  =  table['SII6716']/table['SII6716_err'] 
+
+    table['v_SIGMA']     = table['OIII5006_SIGMA']
+    table['v_SIGMA_S/N'] = table['OIII5006_S/N'] 
+
+    table['v_SIGMA'][np.where(table['HA6562_S/N']>table['v_SIGMA_S/N'] )] = table['HA6562_SIGMA'][np.where(table['HA6562_S/N']>table['v_SIGMA_S/N'] )]
+    table['v_SIGMA_S/N'][np.where(table['HA6562_S/N']>table['v_SIGMA_S/N'] )] = table['HA6562_S/N'][np.where(table['HA6562_S/N']>table['v_SIGMA_S/N'] )] 
+    
+    table['v_SIGMA'][np.where(table['SII6716_S/N']>table['v_SIGMA_S/N'])] = table['SII6716_SIGMA'][np.where(table['SII6716_S/N']>table['v_SIGMA_S/N'] )]
+    table['v_SIGMA_S/N'][np.where(table['SII6716_S/N']>table['v_SIGMA_S/N'] )] = table['SII6716_S/N'][np.where(table['SII6716_S/N']>table['v_SIGMA_S/N'] )] 
+
     logger.info('v_sigma: median={:.2f}, median={:.2f}, sig={:.2f}'.format(*sigma_clipped_stats(table['v_SIGMA'][~np.isnan(table['v_SIGMA'])])))
-    '''
     
     table['R']  =  np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583']))
     table['dR'] = np.sqrt((table['OIII5006_err'] / table['OIII5006'])**2 + (table['HA6562_err'] / (table['HA6562']+table['NII6583']))**2 + (table['NII6583_err'] / (table['HA6562']+table['NII6583']))**2) /np.log(10) 
@@ -97,9 +107,12 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     # define criterias to exclude non PN objects
     criteria = {}
     criteria[''] = (4 <table['R']-table['dR']) #& (table['HA6562_detection'])
+    
+    #criteria['HII'] = (10**(table['R']+table['dR']) < 1.6)
     criteria['HII'] = (table['R'] + table['dR'] < -0.37*table['MOIII'] - 1.16) #& (table['HA6562_detection'] | table['NII6583_detection'])
     criteria['SNR'] = ((table['HA6562']) / (table['SII6716']) < 2.5)  & (table['SII6716_detection']) 
-    #criteria['SNR'] |= (table['v_SIGMA']>100)
+    # only apply this criteria if signal to noise is > 3
+    criteria['SNR'] |= ((table['v_SIGMA']>100) & (table['v_SIGMA_S/N']>3))
 
     # objects that would be classified as PN by narrowband observations
     table['SNRorPN'] = criteria['SNR'] & ~criteria['HII']
@@ -129,151 +142,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
 def gaussian(x,mu,sig):
     return 1/np.sqrt(2*np.pi*sig**2) * np.exp(-(x-mu)**2/(2*sig**2))
 
-class MaximumLikelihood:
-    '''
 
-    for uncertainties 
-    https://erikbern.com/2018/10/08/the-hackers-guide-to-uncertainty-estimates.html
-    
-    Parameters
-    ----------
-    func : function
-        PDF of the form `func(data,params)`. `func` must accept a
-        ndarray for `data` and can have any number of additional
-        parameters (at least one).
-        
-    data : ndarray
-        Measured data that are feed into `func`.
-
-    err : ndarray
-        Error associated with data.
-
-    prior : function
-        Prior probabilities for the parameters of func.
-
-    method : 
-        algorithm that is used for the minimization.
-
-    **kwargs
-       additional fixed key word arguments that are passed to func.
-    '''
-    
-    def __init__(self,func,data,err=None,prior=None,method='Nelder-Mead',**kwargs):
-        
-        if len(signature(func).parameters)-len(kwargs)<2:
-            raise ValueError(f'`func` must have at least one free argument')
-        self.func = func
-
-        self.data   = data
-        self.err    = err
-        if prior:
-            self.prior = prior
-        self.method = method
-        self.kwargs = kwargs
-
-    def prior(self,*args):
-        '''uniform prior'''
-        return 1/len(self.data)
-
-
-    def _loglike(self,params,data):
-        '''calculate the log liklihood of the given parameters
-        
-        This function takes the previously specified PDF and calculates
-        the sum of the logarithmic probabilities. If key word arguments
-        were initially passed to the class, they are also passed to the
-        function
-        '''
-        
-        return -np.sum(np.log(self.func(data,*params,**self.kwargs))) - np.log(self.prior(*params)) 
-
-    def fit(self,guess):
-        '''use scipy minimize to find the best parameters'''
-        
-        logger.info(f'searching for best parameters with {len(self.data)} data points')
-
-        self.result = minimize(self._loglike,guess,args=(self.data),method=self.method)
-        self.x = self.result.x
-        if not self.result.success:
-            raise RuntimeError('fit was not successful')
-
-        self.dx = np.zeros((len(self.x),2))
-        if np.any(self.err):
-            
-            B = 100
-            #bootstrapping
-            result_bootstrap = np.zeros((B,len(self.x)))
-            for i in range(B):
-                sample = np.random.normal(self.data,self.err)
-                result_bootstrap[i,:] = minimize(self._loglike,guess,args=(sample),method=self.method).x
-            err_boot = np.sqrt(np.sum((result_bootstrap-self.x)**2,axis=0)/B)
-            self.dx[:,0] = err_boot 
-            self.dx[:,1] = err_boot  
-        
-            '''
-            self.result_m = minimize(self._loglike,guess,args=(self.data-self.err),method=self.method)
-            self.result_p = minimize(self._loglike,guess,args=(self.data+self.err),method=self.method)
-
-            if not self.result_m.success or not self.result_p.success:
-                raise RuntimeError('fit for error was not successful')
-            
-            self.dx[:,0] = self.x - self.result_m.x
-            self.dx[:,1] = self.result_p.x - self.x
-            '''
-
-        else:
-            B = 500
-            #bootstrapping
-            result_bootstrap = np.zeros((B,len(self.x)))
-            for i in range(B):
-                sample = np.random.choice(self.data,len(self.data))
-                result_bootstrap[i,:] = minimize(self._loglike,guess,args=(sample),method=self.method).x
-            err_boot = np.sqrt(np.sum((result_bootstrap-self.x)**2,axis=0)/B)
-            self.dx[:,0] = err_boot 
-            self.dx[:,1] = err_boot  
-
-        for name,_x,_dx in zip(list(signature(self.func).parameters)[1:],self.x,self.dx):
-            print(f'{name} = {_x:.3f} + {_dx[1]:.3f} - {_dx[0]:.3f} ')
-
-        return self.x
-
-    def plot(self,limits):
-        '''plot the likelihood
-        
-        plot the evidence, prior and likelihood for the given data over
-        some parameters space.
-        '''
-        
-        mu = np.linspace(*limits,500)
-        evidence   = np.exp([np.sum(np.log(self.func(self.data,*[_],**self.kwargs))) for _ in mu])
-        prior      = np.array([self.prior(_) for _ in mu])
-        likelihood = np.exp(np.array([-self._loglike([_],self.data) for _ in mu]))
- 
-        valid = ~np.isnan(evidence) &  ~np.isnan(likelihood) 
-        evidence /= np.abs(np.trapz(evidence[valid],mu[valid]))
-        prior /= np.abs(np.trapz(prior[valid],mu[valid]))
-        likelihood /= np.abs(np.trapz(likelihood[valid],mu[valid]))
-
-        print(np.nanmean(likelihood))
-        print(np.nanstd(likelihood))
-
-
-        fig = figure()
-        ax  = fig.add_subplot()
-
-        ax.plot(mu,evidence,label='evidence')
-        ax.plot(mu,prior,label='prior')
-        ax.plot(mu,likelihood,label='likelihood')
-        ax.legend()
-
-        ax.set_ylabel('likelihood')
-        ax.set_xlabel('mu')
-
-    def __call__(self,guess):
-        '''use scipy minimize to find the best parameters'''
-
-        return self.fit(guess)
-        
 
 class MaximumLikelihood1D:
     '''
@@ -360,8 +229,8 @@ class MaximumLikelihood1D:
 
         #for name,_x,_dx in zip(list(signature(self.func).parameters)[1:],self.x,self.dx):
         #    print(f'{name} = {_x:.3f} + {_dx[1]:.3f} - {_dx[0]:.3f} ')
-        
-        self.x_arr = np.linspace(self.x-1,self.x+1,1000)
+        size = 0.5
+        self.x_arr = np.linspace(self.x-size,self.x+size,1000)
         self.evidence_arr   = np.exp([self.evidence(_) for _ in self.x_arr])
         self.prior_arr      = np.array([self.prior(_) for _ in self.x_arr])
         self.likelihood_arr = np.exp([-self.likelihood(_) for _ in self.x_arr])
@@ -399,25 +268,24 @@ class MaximumLikelihood1D:
         else:
             x,dp,dm = self.x,self.plus,self.minus
         
-        fig = figure(figsize=(8,6))
-        ax1 = fig.add_subplot(2,1,1)
-        ax2 = fig.add_subplot(2,1,2,sharex=ax1)
+        fig, (ax1,ax2) = subplots(nrows=2,ncols=1,figsize=(single_column,single_column),sharex=True)
+        #fig = figure(figsize=(single_column,single_column))
+        #ax1 = fig.add_subplot(2,1,1)
+        #ax2 = fig.add_subplot(2,1,2,sharex=ax1)
         ax1.tick_params(labelbottom=False)
 
-        ax1.plot(self.x_arr,self.evidence_arr,label='evidence',color='tab:green')
-        ax1.plot(self.x_arr,self.prior_arr,label='prior',color='tab:blue')
-        ax1.plot(self.x_arr,self.likelihood_arr,label='likelihood',color='tab:orange')
+        ax1.plot(self.x_arr,self.prior_arr,label='prior',color=tab10[1])
+        ax1.plot(self.x_arr,self.evidence_arr,label='evidence',color=tab10[0])
+        l = ax1.plot(self.x_arr,self.likelihood_arr,label='likelihood',color=tab10[2])
         
         ax1.axvline(self.x,ls='--',c='k',lw=0.5)
         ax1.axvline(self.x_arr[self.low],ls='--',c='k',lw=0.5)
         ax1.axvline(self.x_arr[self.high],ls='--',c='k',lw=0.5)
         
-        ax1.legend()
 
         ax1.set_ylabel('likelihood')
-        ax2.set_xlabel('mu')
         
-        ax2.plot(self.x_arr[1:],self.integral,label='cumulative likelihood',color='tab:orange')
+        ax2.plot(self.x_arr[1:],self.integral,label='cumulative likelihood',color=tab10[2])
         ax2.axvline(self.x,ls='--',c='k',lw=0.5)
         ax2.axhline(0.5,ls='--',c='k',lw=0.5)
 
@@ -425,12 +293,17 @@ class MaximumLikelihood1D:
         ax2.axhline(0.5-0.683/2,ls='--',c='k',lw=0.5)
         ax2.axvline(self.x_arr[self.low],ls='--',c='k',lw=0.5)
         ax2.axvline(self.x_arr[self.high],ls='--',c='k',lw=0.5)
-        
-        ax2.set_xlabel('mu')
+
+        ax1.legend()
+
+        ax2.set_xlabel(r'$(m-M)$ / mag')
         ax2.set_ylabel('cumulative likelihood')
         ax1.set_title(f'{self.x:.3f}+{dp:.3f}-{dm:.3f}')
+        ax1.annotate(f'{len(self.data)} data points',(0.02,0.87),xycoords='axes fraction',fontsize=8)
+        plt.subplots_adjust(hspace = .001)      
 
-    
+        return fig 
+
     def __call__(self,guess):
         '''use scipy minimize to find the best parameters'''
 
@@ -512,5 +385,3 @@ def PNLF(bins,mu,mhigh,Mmax=-4.47):
     out[out<0] = 0
 
     return out
-
-
