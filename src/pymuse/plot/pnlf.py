@@ -13,7 +13,9 @@ from astropy.io import ascii
 from ..analyse import PNLF
 
 basedir = Path(__file__).parent.parent.parent.parent
-tab10 = ['#e15759','#4e79a7','#f28e2b','#76b7b2','#59a14e','#edc949','#b07aa2','#ff9da7','#9c755f','#bab0ac']    
+
+from ..constants import tab10, single_column, two_column
+
 
 def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
               filename=None,metadata=None,color='tab:red',alpha=1,axes=None):
@@ -66,12 +68,16 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
 
     if not axes:
         # create an empty figure
-        fig = figure(figsize=(6.974,6.974/2))
+        fig = figure(figsize=(two_column,two_column/2))
+        #fig = figure(figsize=(6.974,6.974/2))
         ax1 = fig.add_subplot(1,2,1)
         ax2 = fig.add_subplot(1,2,2)
     else:
         ax1,ax2 = axes 
         fig = ax1.get_figure()
+
+    #fig.set_facecolor((223/255,207/255,187/255))
+    #ax1.set_facecolor((223/255,207/255,187/255))
 
     # scatter plot
     ax1.errorbar(m[m<completeness],hist[m<completeness],yerr=err[m<completeness],
@@ -114,6 +120,8 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
     if filename:
         #savefig(filename.with_suffix('.pgf'),bbox_inches='tight')
         savefig(filename.with_suffix('.pdf'),bbox_inches='tight')
+        #savefig(filename.with_suffix('.png'),bbox_inches='tight',dpi=600,facecolor=(223/255,207/255,187/255))
+
         #with PdfPages(filename.with_suffix('.pdf')) as pdf:
         #    pdf.savefig(fig,metadata= {'Creator': 'matplotlib', 'Author': 'FS', 'Title': 'NGC628'})
     else:
@@ -125,18 +133,18 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
 def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     
     Mmax = -4.47
-
-    fig, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(6.974,6.974/2))
+    fig, (ax1,ax2,ax3) = plt.subplots(nrows=1,ncols=3,figsize=(two_column,two_column/3.3))
     
-    style = {'SNR':{"marker":'o',"ms":5,"mfc":'white',"mec":'tab:red','ls':'none','ecolor':'tab:red'},
-             'SNRorPN':{"marker":'o',"ms":5,"mfc":'white',"mec":'tab:green','ls':'none','ecolor':'tab:green'},
-             'HII':{"marker":'+',"ms":5,"mec":'black','ls':'none'},
-             'PN':{"marker":'o',"ms":3,"mfc":'black','mec':'black','ls':'none','ecolor':'black'}
+    style = {'SNR':{"marker":'o',"ms":3,"mfc":'None',"mec":tab10[0],'ls':'none','ecolor':tab10[0]},
+             'SNRorPN':{"marker":'o',"ms":4,"mfc":'white',"mec":'tab:green','ls':'none','ecolor':'tab:green'},
+             'HII':{"marker":'+',"ms":3,"mec":tab10[1],'ls':'none'},
+             'PN':{"marker":'o',"ms":2,"mfc":'black','mec':'black','ls':'none','ecolor':'black'}
             }
 
     # ------------------------------------------------
     # left plot [OIII]/Ha over mOIII
     # ------------------------------------------------
+    
     MOIII = np.linspace(-5,-1)
     OIII_Ha = 10**(-0.37*(MOIII)-1.16)
     ax1.plot(MOIII,OIII_Ha,c='black',lw=0.6)
@@ -146,19 +154,23 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
         ax1.axvline(completeness-mu,ls='--',c='grey',lw=0.5)
     ax1.axvline(Mmax,ls='--',c='grey',lw=0.5)
 
-
-    for t in ['HII','SNR','PN']:
+    for t in ['HII','PN','SNR']:
         tbl = table[table['type']==t]
+        print(f'{t}: {len(tbl[tbl["mOIII"]<completeness])} objects')
+        
         ax1.errorbar(tbl['mOIII']-mu,tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),**style[t],label=t) 
 
         if t=='PN':
             # indicate for which PN we don't have a detection in HA6562
             tbl = tbl[~tbl['HA6562_detection']]
-            ax1.errorbar(tbl['mOIII']-mu,1.07*tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),
-                         marker=r'$\uparrow$',ms=6,mec='black',ls='none') 
+            ax1.errorbar(tbl['mOIII']-mu,1.11*tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),
+                         marker=r'$\uparrow$',ms=4,mec='black',ls='none') 
+        if t=='SNR':
+           tbl = tbl[tbl['SNRorPN']] 
+           print(f'SNR or PN: {len(tbl[tbl["mOIII"]<completeness])} objects')
+           ax1.errorbar(tbl['mOIII']-mu,tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']), marker='x',ms=2,mec=tab10[0],ls='none') 
 
-    #wax1.legend()
-    
+
     ax1.set(xlim=[-5,np.ceil(completeness-mu)],
            ylim=[0.03,200],
            yscale='log',
@@ -167,13 +179,15 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     
     ax1.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.16g}'.format(y)))
 
+    ax1t = ax1.twiny()
+    xlim1,xlim2 = ax1.get_xlim()
+    ax1t.set_xticks(np.arange(np.ceil(xlim1+mu),np.floor(xlim2+mu)+1),minor=False)
+    ax1t.set(xlim   = [xlim1+mu,xlim2+mu],
+            xlabel = r'$m_{\mathrm{[OIII]}}$')
+
     # ------------------------------------------------
-    # right plot Ha/[NII] over Ha/[SII]
+    # middle plot Ha/[NII] over Ha/[SII]
     # ------------------------------------------------
-    #mOIII = np.linspace(24,29)
-    #mu = 29.91
-    #OIII_Ha = 10**(-0.37*(mOIII-mu)-1.16)
-    #ax1.plot(mOIII,OIII_Ha)
     
     for t in ['HII','SNR','PN']:
         tbl = table[(table['type']==t)] #& (table['HA6562_detection'] | table['HA6562_detection'])]
@@ -183,12 +197,12 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
         if t=='PN':
             # indicate for which PN we don't have a detection in HA6562
             tbl = tbl[~tbl['SII6716_detection'] | ~tbl['HA6562_detection']]
-            ax2.errorbar(0.02+np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']),
-                         marker=r'$\!\rightarrow$',ms=6,mec='black',ls='none') 
+            ax2.errorbar(0.03+np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']),
+                         marker=r'$\!\rightarrow$',ms=4,mec='black',ls='none') 
+        if t=='SNR':
+           tbl = tbl[tbl['SNRorPN']] 
+           ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']), marker='x',ms=2,mec=tab10[0],ls='none') 
 
-    tbl = table[table['SNRorPN'] & (table['type']=='SNR')]
-    ax1.errorbar(tbl['mOIII']-mu,tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']), marker='x',ms=3,mec='tab:red',ls='none') 
-    ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']), marker='x',ms=3,mec='tab:red',ls='none') 
 
     ax2.legend()
 
@@ -210,13 +224,20 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     ax2.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.1))
     ax2.yaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.1))    
 
-    ax3 = ax1.twiny()
-    xlim1,xlim2 = ax1.get_xlim()
-    ax3.set_xticks(np.arange(np.ceil(xlim1+mu),np.floor(xlim2+mu)+1),minor=False)
-    ax3.set(xlim   = [xlim1+mu,xlim2+mu],
-            xlabel = r'$m_{\mathrm{[OIII]}}$')
+    # ------------------------------------------------
+    # right plot with velocity dispersion
+    # ------------------------------------------------
 
-    plt.subplots_adjust(wspace=0.25)
+    bins = np.arange(0,200,10)
+
+    ax3.hist(table[(table['type']=='PN') & (table['v_SIGMA_S/N']>3)]['v_SIGMA'],bins=bins,alpha=1,label='PN',color='black')
+    ax3.hist(table[(table['type']=='SNR') & (table['v_SIGMA_S/N']>3)]['v_SIGMA'],bins=bins,alpha=0.8,label='SNR',color=tab10[0])
+
+    ax3.set_xlabel(r'$\sigma_V$ / km s$^{-1}$')
+    ax3.axvline(100,c='black',lw=0.6) 
+    ax3.legend()
+
+    plt.subplots_adjust(wspace=0.35)
 
     #plt.tight_layout()
 
@@ -237,6 +258,7 @@ importance = [
 'Tully est',
 'Brightest Stars',
 'Grav. Stability Gas. Disk',
+'Disk Stability',
 'IRAS',
 'Ring Diameter',
 'Sosies',
@@ -248,6 +270,7 @@ colors = {
 'Brightest Stars':'#9c755f',
 'Cepheids':'#59a14e',
 'Grav. Stability Gas. Disk':'#76b7b2',
+'Disk Stability':'#76b7b2',
 'IRAS':'#ff9da7',
 'PNLF':'#edc949',
 'Ring Diameter':'#bab0ac',
@@ -281,6 +304,8 @@ def compare_distances(name,distance,plus,minus,filename=None):
 
     # ugly workaround 
     # some papers publish more than one distance. We use only the one with the smallest uncertainty
+    distances = distances[np.abs(distances['(m-M)']-distance)<1]
+    
     remove = []
     for i,row in enumerate(distances):
 
@@ -292,13 +317,13 @@ def compare_distances(name,distance,plus,minus,filename=None):
     remove.sort(reverse=True)
     for i in remove:
         distances.remove_row(i)
-
+    
 
     distances['sort_order'] = [importance.index(row['Method']) for row in distances]
     distances.sort(['sort_order','year'])
     distances['y'] = np.arange(1,len(distances)+1)
 
-    fig = plt.figure(figsize=(3.321,0.15*len(distances)))
+    fig = plt.figure(figsize=(single_column,0.15*len(distances)))
     ax = fig.add_subplot(1,1,1)
 
     ax.fill_betweenx(np.arange(0,len(distances)+2), distance-minus, distance+plus,facecolor=tab10[0], alpha=0.4)
@@ -318,6 +343,7 @@ def compare_distances(name,distance,plus,minus,filename=None):
 
     ax.set_yticks(distances['y'],minor=False)
     ax.set_yticklabels(distances['link'])
+    ax.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.25))
     ax.set_xlabel(r'$(m-M)\ /\ \mathrm{mag}$')
     ax.set_ylim([0.5,len(distances)+0.5])
 
@@ -326,8 +352,10 @@ def compare_distances(name,distance,plus,minus,filename=None):
     ax2.set_yticklabels(method_labels)
     ax2.set_ylim([0.5,len(distances)+0.5])
 
-    #plt.tight_layout()
+    plt.tight_layout()
 
     if filename:
         plt.savefig(filename.with_suffix('.pdf'),bbox_inches='tight')
+        plt.savefig(filename.with_suffix('.pgf'),bbox_inches='tight')
+
     plt.show()
