@@ -91,7 +91,7 @@ pn_NGC628_kreckel['source'] = 'Kreckel PN'
 snr_NGC628_kreckel['source'] = 'Kreckel SNR'
 pn_NGC628_herrmann['source'] = 'Herrmann PN'
 
-NGC628 = vstack([pn_NGC628_kreckel[['source','RA','DEC','mOIII','R','dR']],snr_NGC628_kreckel[['source','RA','DEC','mOIII','R','dR']],pn_NGC628_herrmann[['source','RA','DEC','mOIII','R','dR']]])
+NGC628 = vstack([pn_NGC628_kreckel[['source','ID','RA','DEC','mOIII','R','dR']],snr_NGC628_kreckel[['source','ID','RA','DEC','mOIII','R','dR']],pn_NGC628_herrmann[['source','ID','RA','DEC','mOIII','R','dR']]])
 
 pn_NGC628_kreckel['SkyCoord'] = SkyCoord(pn_NGC628_kreckel['RA'],pn_NGC628_kreckel['DEC'])
 snr_NGC628_kreckel['SkyCoord'] = SkyCoord(snr_NGC628_kreckel['RA'],snr_NGC628_kreckel['DEC'])
