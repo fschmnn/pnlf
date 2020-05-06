@@ -53,9 +53,6 @@ def classification_map(galaxy,parameters,tbl,filename):
     ax2 = fig.add_subplot(132,projection=wcs)
     ax3 = fig.add_subplot(133)
 
-    #fig, (ax2,ax3,ax1) = plt.subplots(ncols=3,figsize=(6.974,6.974/2),subplot_kw={'projection':wcs})
-
-
     norm = simple_norm(galaxy.OIII5006_DAP,'linear',clip=False,max_percent=95)
     ax1.imshow(galaxy.OIII5006_DAP,norm=norm,cmap=plt.cm.Greens)
 
@@ -76,14 +73,14 @@ def classification_map(galaxy,parameters,tbl,filename):
         apertures.plot(color=c,lw=.2, alpha=1,ax=ax2)
         apertures.plot(color=c,lw=.4, alpha=1,ax=ax3)
 
-    '''
+    '''    
     for row in table[table['type']!='HII']:
-        txt,x,y = row['id'], row['x']+5, row['y']
+        txt,xp,yp = row['id'], row['x']+5, row['y']
         
-        if x1<x<x2 and y1<y<y2:
-            #ax1.annotate(txt, (x, y),fontsize=0.5)
-            #ax2.annotate(txt, (x, y),fontsize=0.5)
-            ax3.annotate(txt, (x, y),fontsize=2,color='white')
+        #if x<x<x+width and y<y<y+height:
+        ax1.annotate(txt, (xp, yp),fontsize=1,color='black')
+        #ax2.annotate(txt, (xp, yp),fontsize=0.5)
+        ax3.annotate(txt, (xp, yp),fontsize=2,color='white')
     '''
     
     # first we create a legend with three invisible handles

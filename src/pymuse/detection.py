@@ -72,7 +72,7 @@ def detect_unresolved_sources(
     '''
     
     if not isinstance(self,ReadLineMaps):
-        raise TypeError('input must be of type ReadLineMaps')
+        logger.warning('input should be of type ReadLineMaps')
     
     daoargs = {k:kwargs.pop(k) for k in dict(kwargs) if k in inspect.signature(DAOStarFinder).parameters.keys()}
 
@@ -118,7 +118,7 @@ def detect_unresolved_sources(
         finder = StarFinder(fwhm      = fwhm * PSF_correction * oversize, 
                             threshold = threshold*std,
                             **daoargs)
-        peaks_part = finder(data, mask=(~psf_mask | exclude_region))
+        peaks_part = finder(data-median, mask=(~psf_mask | exclude_region))
         
         if not peaks_part:
             logger.warning('no sources found in pointing')

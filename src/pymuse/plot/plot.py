@@ -187,9 +187,11 @@ def single_cutout(self,x,y,size=32,aperture_size=None,percentile=99):
     im2 = ax2.imshow(rgb[xslice,yslice,:],origin='lower')
 
     if aperture_size:
-        aperture = CircularAperture((x,y),aperture_size)
-        aperture.plot(color='tab:red',lw=0.8,ax=ax1)
-        aperture.plot(color='tab:red',lw=0.8,ax=ax2)
+        aperture = CircularAperture((size/2+(x-int(x)),size/2+(y-int(y))),aperture_size)
+        aperture.plot(color='black',lw=0.8,ax=ax1)
+        aperture.plot(color='black',lw=0.8,ax=ax2)
+        ax3.axvline(aperture_size,color='black',lw=0.8)
+
 
     #ax1.set_xlim([x-size/2,x+size/2])
     #ax1.set_ylim([y-size/2,y+size/2])
@@ -205,7 +207,7 @@ def single_cutout(self,x,y,size=32,aperture_size=None,percentile=99):
 
     ax2.set_yticks([])
 
-    return rgb
+    return ax1,ax2,ax3
 
 
 def create_RGB(r,g,b,weights=None,percentile=95):

@@ -70,9 +70,11 @@ class ReadLineMaps:
             setattr(self,'wcs',WCS(header))
             setattr(self,'shape',(header['NAXIS2'],header['NAXIS1']))
             setattr(self,'V_STARS',hdul['V_STARS'].data)
+            setattr(self,'stellar_mass',hdul['STELLAR_MASS_DENSITY'].data)
+            setattr(self,'stellar_mass_err',hdul['STELLAR_MASS_DENSITY_err'].data)
+            setattr(self,'Ebv_stars',hdul['EBV_STARS'].data)
             setattr(self,'whitelight',hdul['FLUX'].data)
             setattr(self,'whitelight_err',hdul['SNR'].data)
-            setattr(self,'Ebv_stars',hdul['EBV_STARS'].data)
 
             for line in lines:
                 # save the main data and the associated error

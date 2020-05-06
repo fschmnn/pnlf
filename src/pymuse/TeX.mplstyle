@@ -7,6 +7,9 @@
 #    mpl.use('pgf')
 #    import matplotlib.pyplot as plt
 #
+# a full list of parameters can be found here
+# https://matplotlib.org/3.1.0/tutorials/introductory/customizing.html
+#
 # to obtain the correct figuresize use width_pt = \the\textwidth in your 
 # LaTeX document. Then calculate width_in = width_pt / 72.27
 # (optional hight_in = width_in / 1.618)
@@ -25,6 +28,11 @@ savefig.edgecolor : white
 savefig.bbox :      tight
 
 # --------------------------------------------------------------------- 
+# figsize 
+# ---------------------------------------------------------------------
+figure.figsize   :  3.32, 2.05   ## figure size in inches
+
+# --------------------------------------------------------------------- 
 # colorcycle of the lines and width
 # ---------------------------------------------------------------------
 
@@ -32,7 +40,7 @@ savefig.bbox :      tight
 #tableau10 = ['1f77b4','ff7f0e','2ca02c','d62728','9467bd','8c564b','e377c2','7f7f7f','bccd22','17becf']
 #tableau20 = ['1f77b4','aec7e8','ff7f0e','ffbb78','2ca02c','98df8a','d62728','ff9896','9467bd','c5b0d5','8c564b','c49c94','e377c2','f7b6d2','7f7f7f','c7c7c7','bcbd22','dbdb8d','17becf','9edae5']
 #tabmod = ['d62728','1f77b4','ff7f0e','2ca02c','9467bd','edc949','17becf','e377c2','8c564b']
-axes.prop_cycle: cycler('color',['4e79a7','f28e2b','e15759','76b7b2','59a14e','edc949','b07aa2','ff9da7','9c755f','bab0ac'])
+axes.prop_cycle: cycler('color',['e15759','4e79a7','f28e2b','76b7b2','59a14e','edc949','b07aa2','ff9da7','9c755f','bab0ac'])
 
 # --------------------------------------------------------------------- 
 # lines and markers
@@ -40,7 +48,7 @@ axes.prop_cycle: cycler('color',['4e79a7','f28e2b','e15759','76b7b2','59a14e','e
 
 lines.linewidth :  1.0
 lines.markersize : 5
-scatter.marker:    x
+scatter.marker:    o
 
 # --------------------------------------------------------------------- 
 # fontsize and color (more in TeX.mplstyle) 
@@ -57,11 +65,11 @@ font.sans-serif: []
 font.monospace:  []
 
 font.size:        10
-figure.titlesize: large
-axes.titlesize:   large
-axes.labelsize:   medium
-xtick.labelsize:  small
-ytick.labelsize:  small
+figure.titlesize: medium
+axes.titlesize:   medium
+axes.labelsize:   small 
+xtick.labelsize:  x-small
+ytick.labelsize:  x-small
 
 text.color:       black
 axes.labelcolor:  black  
@@ -104,8 +112,15 @@ grid.color:        C8C8C8
 # ---------------------------------------------------------------------
 
 legend.frameon:       True
-legend.fontsize:      small
+legend.fontsize:      x-small
 legend.facecolor:     inherit
 legend.framealpha:    1
 legend.edgecolor:     DDDDDD
 legend.fancybox:      False
+legend.borderpad     : 0.3  ## border whitespace
+legend.labelspacing  : 0.4  ## the vertical space between the legend entries
+legend.handlelength  : 1.0  ## the length of the legend lines
+legend.handleheight  : 0.5  ## the height of the legend handle
+legend.handletextpad : 0.4  ## the space between the legend line and legend text
+#legend.borderaxespad : 0.5  ## the border between the axes and legend edge
+#legend.columnspacing : 2.0  ## column separation

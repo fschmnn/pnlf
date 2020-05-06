@@ -13,6 +13,7 @@ import numpy as np
 
 cwd = Path(__file__).parent
 
+
 def figsize(scale=1):
     '''Create nicely proportioned figure
 

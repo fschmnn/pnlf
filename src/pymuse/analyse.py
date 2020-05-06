@@ -73,10 +73,10 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     table['type'] = np.empty(len(table),dtype='U3')
     table['type'][:] = 'PN'
 
-    # if the flux is smaller than the error we set it to the error
+    # we set negative fluxes to the error (0 would cause because we work with ratios)
     for col in ['OIII5006','HA6562','NII6583','SII6716']:
         # median of error maps is a factor of 3 smaller than std of maps
-        detection = (table[col]>0) & (table[col]>3*table[f'{col}_err'])
+        detection = (table[col]>0) & (table[col]>9*table[f'{col}_err'])
         logger.info(f'{np.sum(~detection)} not detected in {col}')
         table[col][np.where(table[col]<0)] = table[f'{col}_err'][np.where(table[col]<0)] 
         #table[col][np.where(~detection)] = table[f'{col}_err'][np.where(~detection)] 
@@ -101,18 +101,20 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
 
     logger.info('v_sigma: median={:.2f}, median={:.2f}, sig={:.2f}'.format(*sigma_clipped_stats(table['v_SIGMA'][~np.isnan(table['v_SIGMA'])])))
     
+    # define ratio of OIII to Halpha and NII for the first criteria (with error). If NII is not detected we assume NII=0.5Halpha
     table['R']  =  np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583']))
+    table['R'][~table['NII6583_detection']] = np.log10(table['OIII5006'][~table['NII6583_detection']] / (1.5*table['HA6562'][~table['NII6583_detection']])) 
     table['dR'] = np.sqrt((table['OIII5006_err'] / table['OIII5006'])**2 + (table['HA6562_err'] / (table['HA6562']+table['NII6583']))**2 + (table['NII6583_err'] / (table['HA6562']+table['NII6583']))**2) /np.log(10) 
 
     # define criterias to exclude non PN objects
     criteria = {}
-    criteria[''] = (4 <table['R']-table['dR']) #& (table['HA6562_detection'])
-    
+    criteria[''] = (4 < (table['R']-table['dR'])) #& (table['HA6562_detection'])
     #criteria['HII'] = (10**(table['R']+table['dR']) < 1.6)
     criteria['HII'] = (table['R'] + table['dR'] < -0.37*table['MOIII'] - 1.16) #& (table['HA6562_detection'] | table['NII6583_detection'])
+    
     criteria['SNR'] = ((table['HA6562']) / (table['SII6716']) < 2.5)  & (table['SII6716_detection']) 
     # only apply this criteria if signal to noise is > 3
-    criteria['SNR'] |= ((table['v_SIGMA']>100) & (table['v_SIGMA_S/N']>3))
+    #criteria['SNR'] |= ((table['v_SIGMA']>100) & (table['v_SIGMA_S/N']>3)) 
 
     # objects that would be classified as PN by narrowband observations
     table['SNRorPN'] = criteria['SNR'] & ~criteria['HII']

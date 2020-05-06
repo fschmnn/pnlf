@@ -1,8 +1,10 @@
 import numpy as np
 from scipy.special import hyp2f1
+import astropy
+import astropy.units as u        
+from astropy.coordinates import Distance
 
-
-class Distance:
+class Distance_old:
     def __init__(self,value,unit):
         '''save distance in 
 
@@ -127,3 +129,177 @@ def circular_mask(h, w, center=None, radius=None):
 
     mask = dist_from_center <= radius
     return mask
+
+def annulus_mask(h, w, center, inner_radius,outer_radius):
+    '''Create a circular mask for a numpy array
+
+    from
+    https://stackoverflow.com/questions/44865023/how-can-i-create-a-circular-mask-for-a-numpy-array
+    '''
+
+    if inner_radius>outer_radius:
+        raise ValueError('inner radius must be smaller than outer radius')
+
+    Y, X = np.ogrid[:h, :w]
+    dist_from_center = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
+
+    mask = (inner_radius < dist_from_center) & (dist_from_center <= outer_radius)
+
+    return mask
+
+def create_sources_mask(shape,positions,radius):
+    '''mask out all 
+    
+    source_mask = create_sources_mask(galaxy.shape,sources[['x','y']].as_array(),radius=5)
+
+    '''
+
+    mask = np.zeros(shape,dtype=bool)
+
+    for position in positions:
+        mask |= circular_mask(*shape,position,radius=radius)
+    
+    return mask
+
+
+class Table(astropy.table.Table):
+    '''A class to represent tables of heterogeneous data.
+
+    This is a subclass of the astropy.Table class with an additional method
+    to filter the table. Below the original description:
+    
+    Init signature: Table(data=None, masked=None, names=None, dtype=None, 
+                meta=None, copy=True, rows=None, copy_indices=True, **kwargs)
+
+    `Table` provides a class for heterogeneous tabular data, making use of a
+    `numpy` structured array internally to store the data values.  A key
+    enhancement provided by the `Table` class is the ability to easily modify
+    the structure of the table by adding or removing columns, or adding new
+    rows of data.  In addition table and column metadata are fully supported.
+
+    `Table` differs from `~astropy.nddata.NDData` by the assumption that the
+    input data consists of columns of homogeneous data, where each column
+    has a unique identifier and may contain additional metadata such as the
+    data unit, format, and description.
+
+    Parameters
+    ----------
+    data : numpy ndarray, dict, list, Table, or table-like object, optional
+        Data to initialize table.
+    masked : bool, optional
+        Specify whether the table is masked.
+    names : list, optional
+        Specify column names.
+    dtype : list, optional
+        Specify column data types.
+    meta : dict, optional
+        Metadata associated with the table.
+    copy : bool, optional
+        Copy the input data. If the input is a Table the ``meta`` is always
+        copied regardless of the ``copy`` parameter.
+        Default is True.
+    rows : numpy ndarray, list of lists, optional
+        Row-oriented data for table instead of ``data`` argument.
+    copy_indices : bool, optional
+        Copy any indices in the input data. Default is True.
+    **kwargs : dict, optional
+        Additional keyword args when converting table-like object.
+    '''
+    
+    def filter(self, **kwargs: 'column name and value'):
+        '''Filter the table with the given keywords
+
+        This function takes an arbitrary astropy table and applys the given 
+        keyword pairs (name,value) as filters like  data[data[name]==value]. 
+        If value is a list, it filters such that each row contains at least
+        one value from the list. If a value does not exist in any row, it 
+        is ignored. The function returns a new table and leaves the old 
+        table unmodified.
+
+        Equality is the only possible relational operator.
+
+        This function uses np.isin which is equivalent to 
+        [item in v for item in table[k]] 
+        However this syntax takes only lists while np.isn can also handle 
+        single numbers.
+        '''
+        
+        # we return a copy of the table
+        table = self
+        
+        for k,v in kwargs.items():
+            # only apply filter if the column exists
+            if k in table.colnames:
+                table = table[np.isin(table[k],v)]
+            else:
+                raise ValueError(f'WARNING: invalid column name {k}')
+
+        return table
+
+
+def filter_table(table,**kwargs):
+    '''filter a table with the given keyword arguments'''
+    
+    for k,v in kwargs.items():
+        # only apply filter if the column exists
+        if k in table.colnames:
+            table = table[np.isin(table[k],v)]
+        else:
+            raise ValueError(f'WARNING: invalid column name {k}')
+
+    return table
+    
+
+def uncertainties(mu,mu_plus,mu_minus):
+    d       = Distance(distmod=mu)
+    d_plus  = Distance(distmod=mu+mu_plus) - Distance(distmod=mu)
+    d_minus = Distance(distmod=mu)-Distance(distmod=mu-mu_minus)
+    
+    return d,d_plus,d_minus
+
+
+def diameter(D,delta):
+    '''Calculate physical diameter from angular diameter and distance
+    
+    Parameters
+    ----------
+    
+    D :
+        Distance
+        
+    delta :
+        Angular Diameter
+    
+    '''
+    
+    if not D.unit.is_equivalent(u.cm):
+        raise u.UnitsError('invalid unit for distance: '+D.unit)
+        
+    if not delta.unit.is_equivalent(u.degree):
+        raise u.UnitsError('invalid unit for distance: '+delta.unit)
+        
+    return (2 * np.tan(delta/2) * D).to(u.parsec)
+    
+    
+def angular_diameter(D,d):
+    '''Calculate angular diameter from real diameter and distance
+    
+    Parameters
+    ----------
+    
+    D :
+        Distance
+        
+    d :
+        physical diameter
+    
+    '''
+    
+    if not D.unit.is_equivalent(u.cm):
+        raise u.UnitsError(f'invalid unit for distance: {D.unit}')
+        
+    if not d.unit.is_equivalent(u.cm):
+        raise u.UnitsError(f'invalid unit for distance: {d.unit}')
+        
+    return 2 * np.arctan(d/(2*D)).to(u.arcsec)
+

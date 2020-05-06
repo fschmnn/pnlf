@@ -9,10 +9,14 @@ from matplotlib.pyplot import figure, show, savefig
 import matplotlib.pyplot as plt
 
 from astropy.io import ascii
+from astroquery.nasa_ads import ADS
+
 
 from ..analyse import PNLF
 
 basedir = Path(__file__).parent.parent.parent.parent
+
+ADS.TOKEN = open(basedir/'notebooks'/'ADS_DEV_KEY','r').read()
 
 from ..constants import tab10, single_column, two_column
 
@@ -289,7 +293,34 @@ def compare_distances(name,distance,plus,minus,filename=None):
     mpl.rcParams['pgf.preamble'] = [r'\usepackage[hidelinks]{hyperref}', ]
 
     distances = ascii.read(basedir / 'data' / 'external' / f'{name}.csv')
-    references = ascii.read(basedir / 'data' / 'external' / f'{name}ref.csv',encoding='utf8')
+    references = ascii.read(basedir / 'data' / 'external' / f'paper_list.csv',encoding='utf8')
+
+    ref_dict = {
+    'Refcode' : list(references['Refcode']),
+    'Authors' : list(references['Authors']),
+    'Title' : list(references['Title'])
+    }
+
+    new = 0
+    # search for missing references
+    for bibcode in distances['Refcode']:
+        if bibcode not in ref_dict['Refcode']:
+            try:
+                result = ADS.query_simple(bibcode)
+                ref_dict['Refcode'].append(bibcode)
+                ref_dict['Authors'].append(';'.join(result['author'][0]))
+                ref_dict['Title'].append(result['title'][0][0])
+                new += 1
+            except:
+                print(f'can not find {bibcode} for {name}')
+
+    if new>0:
+        print(f'{new} new items added')
+        references = Table(ref_dict)
+
+        references.sort('Refcode',reverse=True)
+        with open(basedir / 'data' / 'external' / f'paper_list.csv','w',encoding='utf8',newline='\n') as f:
+            ascii.write(references,f,format='csv',overwrite=True,delimiter=',')
 
     references.add_index('Refcode')
     references['year'] = [int(row['Refcode'][:4]) for row in references]

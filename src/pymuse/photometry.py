@@ -71,7 +71,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
     # self must be of type Galaxy
     if not isinstance(self,ReadLineMaps):
-        raise TypeError('input must be of type ReadLineMaps')
+        logger.warning('input should be of type ReadLineMaps')
     
     if background not in ['global','local',None]:
         raise TypeError(f'unknown Background estimation: {background}')
@@ -87,7 +87,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
             if not hasattr(self,line):
                 raise AttributeError(f'{self.name} has no attribute {line}')
             
-    logger.info(f'measuring fluxes in {self.name} for {len(peak_tbl)} sources')    
+    logger.info(f'measuring fluxes in {self.name} for {len(peak_tbl)} sources\naperture = {aperture_size} fwhm')    
     
 
     '''
@@ -103,7 +103,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         error = getattr(self,f'{line}_err').copy()
         
         try:
-            v_disp = np.sqrt(getattr(self,f'{line}_SIGMA')**2 - getattr(self,f'{line}_SIGMA_CORR')**2)
+            v_disp = getattr(self,f'{line}_SIGMA')
         except:
             logger.warning('no maps with velocity dispersion for ' + line)
             v_disp = np.zeros(data.shape) 
@@ -121,10 +121,12 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
                         mask=mask).background
         bkg[mask] = np.nan
 
+        #'''
         from astropy.convolution import convolve, Gaussian2DKernel, Box2DKernel
 
         kernel = Box2DKernel(10) #Gaussian2DKernel(10) 
         bkg_convolve = convolve(data,kernel,nan_treatment='interpolate',preserve_nan=True)
+        #'''
 
         '''
         loop over the individual pointings (they have different fwhm)
@@ -149,13 +151,13 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
             # calculate background in this aperture (from global map)
             phot['bkg_global'] = aperture_photometry(bkg, aperture)['aperture_sum']
-            phot['bkg_convolve'] = aperture_photometry(bkg_convolve, aperture)['aperture_sum']
+            #phot['bkg_convolve'] = aperture_photometry(bkg_convolve, aperture)['aperture_sum']
 
 
             # the local background subtraction estimates the background for 
             # each source individually 
             r_in  = 5 * fwhm / 2  * PSF_correction
-            r_out = 1.*np.sqrt(3*r**2+r_in**2)
+            r_out = np.sqrt(3*r**2+r_in**2)
             annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
             annulus_masks = annulus_aperture.to_mask(method='center')
 
@@ -179,10 +181,10 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
                 if background == 'local':
                     phot['flux'] = phot['aperture_sum'] - phot['bkg_local']
                 else:
-                    phot['flux'] = phot['aperture_sum'] - phot['bkg_convolve']
+                    phot['flux'] = phot['aperture_sum'] - phot['bkg_global']
 
             # calculate the average of the velocity dispersion
-            aperture = CircularAperture(positions, r=fwhm)
+            aperture = CircularAperture(positions, r=2)
             SIGMA = aperture_photometry(v_disp,aperture)
             phot['SIGMA'] = SIGMA['aperture_sum'] / aperture.area
 
@@ -211,7 +213,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
     # initialize extinction model
     extinction_model = CCM89(Rv=Rv)
-    k = lambda lam: ext_model.evaluate(lam*u.angstrom,Rv) * Rv
+    #k = lambda lam: ext_model.evaluate(lam*u.angstrom,Rv) * Rv
 
     if extinction == 'all':
         logger.info(f'correcting for internal and MW-extinction')
@@ -232,9 +234,13 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
             flux['y'] = flux['y'].value
             if hasattr(self,'Av'):
                 # if the galaxy has an associated Av map we can correct for internal extinction
-                flux['Av'] = 0.44 * np.array([self.Av[int(row['y']),int(row['x'])] for row in flux])
+                flux['Av']  = 0.44 * np.array([self.Av[int(row['y']),int(row['x'])] for row in flux])
             else:
                 flux['Av'] = 0
+            if hasattr(self,'Ebv'):
+                flux['Ebv'] = np.array([self.Ebv_stars[int(row['y']),int(row['x'])] for row in flux])
+            else:
+                flux['Ebv'] = 0
 
         # correct for extinction        
         wavelength = re.findall(r'\d{4}', k)
@@ -243,7 +249,9 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         wavelength = int(wavelength[0])
         extinction_mw = extinction_model.extinguish(wavelength*u.angstrom,Ebv=Ebv)
         logger.info(f'lambda{wavelength}: Av={-2.5*np.log10(extinction_mw):.2f}')
-        extinction_int = extinction_model.extinguish(wavelength*u.angstrom,Av=flux['Av'])
+        
+        #extinction_int = extinction_model.extinguish(wavelength*u.angstrom,Av=flux['Av'])
+        extinction_int = extinction_model.extinguish(wavelength*u.angstrom,Ebv=flux['Ebv'])
 
         flux[k] = v['flux'] 
         if extinction == 'MW' or extinction=='all':
@@ -254,7 +262,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         flux[f'{k}_err'] = v['aperture_sum_err']
         flux[f'{k}_bkg_local'] = v['bkg_local']
         flux[f'{k}_bkg_global'] = v['bkg_global']
-        flux[f'{k}_bkg_convole'] = v['bkg_convolve']
+        #flux[f'{k}_bkg_convole'] = v['bkg_convolve']
         flux[f'{k}_aperture_sum'] = v['aperture_sum']
         flux[f'{k}_bkg'] = v['bkg_median']
         flux[f'{k}_SIGMA'] = v['SIGMA']

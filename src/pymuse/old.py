@@ -188,3 +188,268 @@ def search_in_old():
     plt.ylim([1800,3300])
 
     plt.savefig(file)
+
+
+
+
+class MaximumLikelihood:
+    '''
+
+    for uncertainties 
+    https://erikbern.com/2018/10/08/the-hackers-guide-to-uncertainty-estimates.html
+    
+    Parameters
+    ----------
+    func : function
+        PDF of the form `func(data,params)`. `func` must accept a
+        ndarray for `data` and can have any number of additional
+        parameters (at least one).
+        
+    data : ndarray
+        Measured data that are feed into `func`.
+
+    err : ndarray
+        Error associated with data.
+
+    prior : function
+        Prior probabilities for the parameters of func.
+
+    method : 
+        algorithm that is used for the minimization.
+
+    **kwargs
+       additional fixed key word arguments that are passed to func.
+    '''
+    
+    def __init__(self,func,data,err=None,prior=None,method='Nelder-Mead',**kwargs):
+        
+        logger.warning('this function is deprecated. Use MaximumLikelihood1D instead')
+
+        if len(signature(func).parameters)-len(kwargs)<2:
+            raise ValueError(f'`func` must have at least one free argument')
+        self.func = func
+
+        self.data   = data
+        self.err    = err
+        if prior:
+            self.prior = prior
+        self.method = method
+        self.kwargs = kwargs
+
+    def prior(self,*args):
+        '''uniform prior'''
+        return 1/len(self.data)
+
+
+    def _loglike(self,params,data):
+        '''calculate the log liklihood of the given parameters
+        
+        This function takes the previously specified PDF and calculates
+        the sum of the logarithmic probabilities. If key word arguments
+        were initially passed to the class, they are also passed to the
+        function
+        '''
+        
+        return -np.sum(np.log(self.func(data,*params,**self.kwargs))) - np.log(self.prior(*params)) 
+
+    def fit(self,guess):
+        '''use scipy minimize to find the best parameters'''
+        
+        logger.info(f'searching for best parameters with {len(self.data)} data points')
+
+        self.result = minimize(self._loglike,guess,args=(self.data),method=self.method)
+        self.x = self.result.x
+        if not self.result.success:
+            raise RuntimeError('fit was not successful')
+
+        self.dx = np.zeros((len(self.x),2))
+        if np.any(self.err):
+            
+            B = 100
+            #bootstrapping
+            result_bootstrap = np.zeros((B,len(self.x)))
+            for i in range(B):
+                sample = np.random.normal(self.data,self.err)
+                result_bootstrap[i,:] = minimize(self._loglike,guess,args=(sample),method=self.method).x
+            err_boot = np.sqrt(np.sum((result_bootstrap-self.x)**2,axis=0)/B)
+            self.dx[:,0] = err_boot 
+            self.dx[:,1] = err_boot  
+        
+            '''
+            self.result_m = minimize(self._loglike,guess,args=(self.data-self.err),method=self.method)
+            self.result_p = minimize(self._loglike,guess,args=(self.data+self.err),method=self.method)
+
+            if not self.result_m.success or not self.result_p.success:
+                raise RuntimeError('fit for error was not successful')
+            
+            self.dx[:,0] = self.x - self.result_m.x
+            self.dx[:,1] = self.result_p.x - self.x
+            '''
+
+        else:
+            B = 500
+            #bootstrapping
+            result_bootstrap = np.zeros((B,len(self.x)))
+            for i in range(B):
+                sample = np.random.choice(self.data,len(self.data))
+                result_bootstrap[i,:] = minimize(self._loglike,guess,args=(sample),method=self.method).x
+            err_boot = np.sqrt(np.sum((result_bootstrap-self.x)**2,axis=0)/B)
+            self.dx[:,0] = err_boot 
+            self.dx[:,1] = err_boot  
+
+        for name,_x,_dx in zip(list(signature(self.func).parameters)[1:],self.x,self.dx):
+            print(f'{name} = {_x:.3f} + {_dx[1]:.3f} - {_dx[0]:.3f} ')
+
+        return self.x
+
+    def plot(self,limits):
+        '''plot the likelihood
+        
+        plot the evidence, prior and likelihood for the given data over
+        some parameters space.
+        '''
+        
+        mu = np.linspace(*limits,500)
+        evidence   = np.exp([np.sum(np.log(self.func(self.data,*[_],**self.kwargs))) for _ in mu])
+        prior      = np.array([self.prior(_) for _ in mu])
+        likelihood = np.exp(np.array([-self._loglike([_],self.data) for _ in mu]))
+ 
+        valid = ~np.isnan(evidence) &  ~np.isnan(likelihood) 
+        evidence /= np.abs(np.trapz(evidence[valid],mu[valid]))
+        prior /= np.abs(np.trapz(prior[valid],mu[valid]))
+        likelihood /= np.abs(np.trapz(likelihood[valid],mu[valid]))
+
+        print(np.nanmean(likelihood))
+        print(np.nanstd(likelihood))
+
+
+        fig = figure()
+        ax  = fig.add_subplot()
+
+        ax.plot(mu,evidence,label='evidence')
+        ax.plot(mu,prior,label='prior')
+        ax.plot(mu,likelihood,label='likelihood')
+        ax.legend()
+
+        ax.set_ylabel('likelihood')
+        ax.set_xlabel('mu')
+
+    def __call__(self,guess):
+        '''use scipy minimize to find the best parameters'''
+
+        return self.fit(guess)
+
+
+
+# ------------------------------------------------------
+# compare with old linemaps
+# ------------------------------------------------------
+
+def old_vs_new_linemaps():
+    with fits.open(data_raw / name / 'ngc628_ha.fits') as hdul:
+        HA6562_old = hdul[0].data
+        HA6562_old_header = hdul[0].header
+        
+    with fits.open(data_raw / name / 'ngc628_ha_err.fits') as hdul:
+        HA6562_old_err = hdul[0].data
+        
+    galaxy.lines.append('HA6562_old')
+
+    x,y = sources['SkyCoord'].to_pixel(WCS(HA6562_old_header))
+
+    sources['x_big'] = x
+    sources['y_big'] = y
+
+    peak_tbl = sources
+
+
+    from pymuse.photometry import light_in_moffat, correct_PSF
+    from photutils import CircularAnnulus, CircularAperture, aperture_photometry
+
+    alpha = galaxy.alpha
+    aperture_size=galaxy.aperturesize
+    wavelength = 6562
+    PSF_correction = correct_PSF(wavelength)
+        
+    del flux_HA
+
+    for fwhm in np.unique(peak_tbl['fwhm']):
+
+        source_part = peak_tbl[peak_tbl['fwhm']==fwhm]
+        positions = np.transpose((source_part['x_big'], source_part['y_big']))
+
+        gamma = fwhm * PSF_correction / (2*np.sqrt(2**(1/alpha)-1))
+
+        r = aperture_size * fwhm / 2 * PSF_correction 
+        aperture = CircularAperture(positions, r=r)
+
+        # measure the flux for each source
+        phot = aperture_photometry(HA6562_old, 
+                                aperture, 
+                                error = HA6562_old_err,
+                                )
+
+
+        r_in  = 5 * fwhm / 2  * PSF_correction
+        r_out = 1.*np.sqrt(3*r**2+r_in**2)
+        annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
+        annulus_masks = annulus_aperture.to_mask(method='center')
+
+        bkg_median = []
+        for mask in annulus_masks:
+            # select the pixels inside the annulus and calulate sigma clipped median
+            annulus_data = mask.multiply(HA6562_old)
+            annulus_data_1d = annulus_data[mask.data > 0]
+            _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=5,maxiters=None)          
+            bkg_median.append(median_sigclip)
+
+        # save bkg_median in case we need it again
+        phot['bkg_median'] = np.array(bkg_median) 
+        # multiply background with size of the aperture
+        phot['aperture_bkg'] = phot['bkg_median'] * aperture.area
+
+
+        phot['flux'] = phot['aperture_sum'] - phot['aperture_bkg']
+
+
+        # correct for flux that is lost outside of the aperture
+        phot['flux'] /= light_in_moffat(r,alpha,gamma)
+
+        # save fwhm in an additional column
+        phot['fwhm'] = fwhm
+
+        # concatenate new sources with output table
+        if 'flux_HA' in locals():
+            phot['id'] += np.amax(flux_HA['id'],initial=0)
+            flux_HA = vstack([flux_HA,phot])
+        else:
+            flux_HA = phot
+            
+
+    from dust_extinction.parameter_averages import CCM89
+
+    # initialize extinction model
+    extinction_model = CCM89(Rv=Rv)
+    k = lambda lam: ext_model.evaluate(wavelength*u.angstrom,Rv) * Rv
+
+
+    extinction_mw = extinction_model.extinguish(wavelength*u.angstrom,Ebv=Ebv)
+
+
+    flux_HA['flux'] /= extinction_mw 
+
+    flux['HA6562_old'] = flux_HA['flux']
+
+    fig,ax = plt.subplots(figsize=(4,4))
+    plt.scatter(flux[tbl['type']=='PN']['HA6562'],flux[tbl['type']=='PN']['HA6562_old'],label='PN')
+    plt.scatter(flux[tbl['type']=='SNR']['HA6562'],flux[tbl['type']=='SNR']['HA6562_old'],label='SNR')
+    plt.legend()
+    plt.plot([-1e5,3e4],[-1e5,3e4])
+    plt.xlim([-15000,20000])
+    plt.ylim([-15000,20000])
+
+    plt.xlabel(r'H$\alpha$ old / (erg/s$^2$ / cm$^2$ / \AA)')
+    plt.ylabel(r'H$\alpha$ DR1 / (erg/s$^2$ / cm$^2$ / \AA)')
+
+    plt.show()
+

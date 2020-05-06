@@ -100,7 +100,7 @@ NGC628['SkyCoord'] = SkyCoord(NGC628['RA'],NGC628['DEC'])
 NGC628_kreckel['SkyCoord'] = SkyCoord(NGC628_kreckel['RA'],NGC628_kreckel['DEC'])
 
 
-pn_NGC5068_herrmann = ascii.read(basedir / 'data' / 'external' / 'Herrmann_2009_pn_candidates.txt',format='csv',delimiter=',')
+pn_NGC5068_herrmann = ascii.read(basedir / 'data' / 'external' / 'Herrmann_NGC5068_pn_candidates.txt',format='csv',delimiter=',')
 
 pn_NGC5068_herrmann['RA'] = list(map(string_to_ra,pn_NGC5068_herrmann['alpha(2000)']))
 pn_NGC5068_herrmann['DEC'] = list(map(string_to_dec,pn_NGC5068_herrmann['delta(2000)']))
