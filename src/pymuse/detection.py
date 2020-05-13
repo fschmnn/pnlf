@@ -360,19 +360,27 @@ def completeness_limit(
         # compare detected sources to known mock stars
         #----------------------------------------------------------------
         logger.info(f'compare detected sources to injected sources')
-        
+
         idx , sep = match_catalogues(mock_sources[['x_mean','y_mean']],peak_tbl[['xcentroid','ycentroid']])
         mock_sources['sep'] = sep
         mock_sources['peak'] = peak_tbl[idx]['peak']
 
         sep_pix = 0.5
         bins = np.arange(np.min(apparent_magnitude)-0.25,np.max(apparent_magnitude)+0.75,0.5)
-        h,_ = np.histogram(mock_sources[mock_sources['sep']<sep_pix]['magnitude'],bins=bins)
+        
+        hi = np.zeros((len(np.unique(PSF[~np.isnan(PSF)])),len(bins)-1))
+
+        for i,fwhm in enumerate(np.unique(PSF[~np.isnan(PSF)])):
+            #PSF_arr contains the FWHM of each mock_source
+            sub = mock_sources[PSF_arr==fwhm]
+           
+            h,_ = np.histogram(sub[sub['sep']<sep_pix]['magnitude'],bins=bins)
+            hi[i,:] = h / len(sub)
 
         if 'hist' in locals():
-            hist += h 
+            hist += hi 
         else:
-            hist = h
+            hist = hi
 
         del peak_tbl
         j+= 1
@@ -384,7 +392,10 @@ def completeness_limit(
     #----------------------------------------------------------------
     fig, ax = plt.subplots(figsize=(single_column,single_column/1.618))
     ax.axhline(80,color='black')
-    ax.bar(apparent_magnitude,hist/stars_per_mag*100/iterations,width=0.4,color=tab10[0])
+    for i in range(hist.shape[0]):
+        ax.bar(apparent_magnitude+0.4*i/hist.shape[0],hist[i,:]*100/iterations,width=0.4/hist.shape[0],color=tab10[0])
+    
+    
     ax.set(xlabel='m$_{[\mathrm{OIII}]}$',
            ylabel='detected sources in %',
            ylim=[0,100])
