@@ -8,6 +8,12 @@ from astropy.wcs import WCS    # handle astronomic coordinates
 from astropy.io import fits    # read data from .fits files.
 from astropy.io import ascii
 from astropy.coordinates import SkyCoord, match_coordinates_sky, Angle
+from reproject import reproject_interp
+
+from astropy.visualization import simple_norm
+import matplotlib.pyplot as plt
+
+from .constants import two_column
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +36,7 @@ class ReadLineMaps:
     pointings and thus impacts the resulting point spread function (PSF).
     '''
     
-    def __init__(self,folder,extensions=['OIII5006','HA6562','NII6583','SII6716']):
+    def __init__(self,folder,name,extensions=['OIII5006','HA6562','NII6583','SII6716'],**kwargs):
         '''
         Parameters
         ----------
@@ -50,11 +56,14 @@ class ReadLineMaps:
         # PSF is given in arcsec but we need it in pixel
         _arcsec_to_pixel = 5
         
-        self.name     = folder.name
-        self.filename = folder / f'{self.name}_MAPS.fits'
+        self.name     = name
+        self.filename = folder / 'MUSEDAP' / f'{self.name}_MAPS.fits'
         self.lines    = []
         
         logger.info(f'loading {self.name}')
+
+        for k,v in kwargs.items():
+            setattr(self,k,v)
 
         if not self.filename.is_file():
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), self.filename)
@@ -62,6 +71,9 @@ class ReadLineMaps:
         # make sure lines is a list
         lines = [extensions] if not isinstance(extensions, list) else extensions
         
+        #==============================================================
+        # load the main DAP products
+        #==============================================================
         with fits.open(self.filename) as hdul:
 
             # save the white-light image
@@ -85,39 +97,59 @@ class ReadLineMaps:
                 # append to list of available lines
                 self.lines.append(line)
 
-        # try to load some additional maps
-        star_mask_file = folder / f'{self.name}_starmask.fits'
+        #==============================================================
+        # load auxiliary maps
+        #==============================================================
+        
+        # and one where OIII is not measured by fitting
+        OIII_bkg_map_file = folder / 'AUXILIARY' / 'oiii_from_cubes' / f'{self.name}_oiii_flux.fits'
+        if OIII_bkg_map_file.is_file():
+            logger.info(f'replacing OIII5006 map')
+            # replace the old line maps with the new one
+            setattr(self,'OIII5006_DAP',getattr(self,'OIII5006'))
+            setattr(self,'OIII5006_DAP_err',getattr(self,'OIII5006_err'))
+            data = fits.getdata(OIII_bkg_map_file,0)
+            setattr(self,'OIII5006',data)
+        else:
+            logger.warn(f'"{self.name}_oiii_flux.fits" does not exists.')
+
+        # star mask
+        star_mask_file = folder / 'AUXILIARY' / 'starmasks_v01' / f'{self.name}_starmask.fits'
+        seeing_map_file = folder / 'AUXILIARY' / 'seeing_maps' / f'{self.name}_seeing.fits'
+        av_file = folder  / 'AUXILIARY' / 'AVmaps' / f'{self.name}_AV.fits'
+
+
+        for filename, description in zip([star_mask_file,seeing_map_file,av_file],["star_mask","PSF","Av"]):
+
+            if filename.is_file():
+                with fits.open(filename) as hdul:
+                    data   = hdul[0].data
+                    
+                    if self.shape != data.shape: 
+                        logger.warning('auxiliary product has different shape. Reprojecting')
+                        data,_ = reproject_interp(hdul,self.header)
+                    
+                    setattr(self,description,data)
+
+            else:
+                logger.warning(f'no {description} available')
+
+        self.PSF *= _arcsec_to_pixel 
+        
+        '''
         if star_mask_file.is_file():
             with fits.open(star_mask_file) as hdul:
                 self.star_mask = hdul[0].data
         else:
             logger.warning(f'no starmask available')
 
-        av_file = folder / f'{self.name}_AV.fits'
         if av_file.is_file():    
             with fits.open(av_file) as hdul:
                 self.Av = hdul[0].data
         else:
             logger.warning(f'no AV map available')
-    
-
-        # and one where OIII is not measured by fitting
-        OIII_bkg_map_file = folder / f'{self.name}_oiii_flux.fits'
-        if OIII_bkg_map_file.is_file():
-            try:
-                logger.info(f'replacing OIII5006 map')
-                # replace the old line maps with the new one
-                setattr(self,'OIII5006_DAP',getattr(self,'OIII5006'))
-                setattr(self,'OIII5006_DAP_err',getattr(self,'OIII5006_err'))
-                data = fits.getdata(OIII_bkg_map_file,0)
-                setattr(self,'OIII5006',data)
-            except:
-                logger.info(f'could not read alternate OIII map for {self.name}')
-        else:
-            logger.warn(f'"{self.name}_oiii_flux.fits" does not exists.')
 
         # we also load a file with information about the PSF
-        seeing_map_file = folder / f'{self.name}_seeing.fits'
         if seeing_map_file.is_file():
             try:
                 data = fits.getdata(seeing_map_file,extname=f'DATA')
@@ -126,6 +158,7 @@ class ReadLineMaps:
                 logger.warn(f'could not read seeing information for {self.name}')
         else:
             logger.warn(f'"{self.name}_seeing.fits" does not exists.')
+        '''   
 
         logger.info(f'file loaded with {len(self.lines)} extensions')
 
@@ -140,7 +173,24 @@ class ReadLineMaps:
                 string += k + '\n'
                 
         return string
-    
+
+    def plot(self,line):
+        '''plot a single emission line'''
+
+        if not hasattr(self,line):
+            raise AttributeError(f'Object has no map {line}')
+        
+        data = getattr(self,line)
+
+        fig = plt.figure(figsize=(two_column,two_column/1.618))
+        ax  = fig.add_subplot(projection=self.wcs)
+
+        norm = simple_norm(data,clip=False,percent=99)
+        ax.imshow(data,norm=norm)
+        plt.show()
+        
+        #return fig 
+
 # save lines to individual .fits file
 def split_fits(filename,extensions):
     '''
@@ -258,6 +308,8 @@ def write_LaTeX(table,galaxy,filename):
             name = str(i+1)
             if galaxy.name == 'NGC628':
                 name += row['match']
+            if row['exclude']:
+                name += '*'
             names.append(name)        
         tbl_out['name'] = names
 
@@ -354,11 +406,9 @@ def write_LaTeX(table,galaxy,filename):
     logger.info('table saved to files')
 
 
-'''
-        newnames = ['$m_\\OIII$','d$m_\\OIII$','$\\OIII/\\HA$','d$(\\OIII/\\HA)$',
-                '$\\HA/\\NII$','d$(\\HA/\\NII)$','$\\HA/\\SII$','d$(\\HA/\\SII)$','$\sigma_V$']
+def read_catalogue(filename):
 
-        oldnames = ['mOIII','dmOIII','OIII/Ha','d(OIII/Ha)',
-                'Ha/NII','d(Ha/NII)','Ha/SII','d(Ha/SII)','v_SIGMA']
-'''
+    catalogue = ascii.read(filename,format='fixed_width_two_line',delimiter_pad=' ',position_char='=')
+    catalogue['SkyCoord'] = SkyCoord(catalogue['R.A.'],catalogue['Dec.'])
 
+    return catalogue
