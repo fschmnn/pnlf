@@ -156,7 +156,7 @@ def spectrum_and_rgb(position,galaxy,data_cube,wcs,aperture_size,title=None,file
     rgb = create_RGB(r.data,g.data,b.data,weights=[0.8,1,0.9],percentile=[97,97,97])
     ax1.imshow(rgb)
 
-    radius = aperture_size * galaxy.PSF[int(x),int(y)] / 2
+    radius = aperture_size * galaxy.PSF[int(y),int(x)] / 2
     aperture = CircularAperture(r.input_position_cutout,radius)
     aperture.plot(color='tab:orange',lw=1,axes=ax1)
     

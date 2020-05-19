@@ -188,6 +188,10 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
             SIGMA = aperture_photometry(v_disp,aperture)
             phot['SIGMA'] = SIGMA['aperture_sum'] / aperture.area
 
+            aperture = CircularAperture(positions, r=2)
+            stellar_mass = aperture_photometry(self.stellar_mass,aperture)
+            phot['stellar_mass'] = stellar_mass['aperture_sum'] / aperture.area
+
             # correct for flux that is lost outside of the aperture
             phot['flux'] /= light_in_moffat(r,alpha,gamma)
             
@@ -227,7 +231,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         
         # first we create the output table with 
         if 'flux' not in locals():
-            flux = v[['id','xcenter','ycenter','fwhm']]
+            flux = v[['id','xcenter','ycenter','fwhm','stellar_mass']]
             flux.rename_column('xcenter','x')
             flux.rename_column('ycenter','y')
             flux['x'] = flux['x'].value         # we don't want them to be in pixel units

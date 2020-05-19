@@ -15,6 +15,7 @@ import random
 
 from photutils import CircularAperture         # define circular aperture
 
+from ..constants import single_column, two_column
 from ..analyse import PNLF
 
 def figsize(scale=1):
@@ -173,7 +174,7 @@ def single_cutout(self,x,y,size=32,aperture_size=None,percentile=99):
     rgb = create_RGB(self.HA6562,self.OIII5006,self.SII6716,percentile=percentile)
     #rgb = Cutout2D(rgb,(x,y),size,wcs=wcs).data
 
-    fig = figure(figsize=(2*6.974,2*6.974/3))
+    fig = figure(figsize=(two_column,two_column/3))
     
     # get an index idx from 0 to nrows*ncols and a random index i from 0 to len(stars)
     ax1 = fig.add_subplot(1,3,1)

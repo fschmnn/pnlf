@@ -114,7 +114,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     
     criteria['SNR'] = ((table['HA6562']) / (table['SII6716']) < 2.5)  & (table['SII6716_detection']) 
     # only apply this criteria if signal to noise is > 3
-    #criteria['SNR'] |= ((table['v_SIGMA']>100) & (table['v_SIGMA_S/N']>3)) 
+    #criteria['SNR'] |= ((table['v_SIGMA']>100) & (table['v_SIGMA_S/N']>10)) 
 
     # objects that would be classified as PN by narrowband observations
     table['SNRorPN'] = criteria['SNR'] & ~criteria['HII']

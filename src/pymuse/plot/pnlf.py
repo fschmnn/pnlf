@@ -233,9 +233,10 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     # ------------------------------------------------
 
     bins = np.arange(0,200,10)
+    SN_cut = 9
 
-    ax3.hist(table[(table['type']=='PN') & (table['v_SIGMA_S/N']>3)]['v_SIGMA'],bins=bins,alpha=1,label='PN',color='black')
-    ax3.hist(table[(table['type']=='SNR') & (table['v_SIGMA_S/N']>3)]['v_SIGMA'],bins=bins,alpha=0.8,label='SNR',color=tab10[0])
+    ax3.hist(table[(table['type']=='PN') & (table['v_SIGMA_S/N']>SN_cut)]['v_SIGMA'],bins=bins,alpha=1,label='PN',color='black')
+    ax3.hist(table[(table['type']=='SNR') & (table['v_SIGMA_S/N']>SN_cut)]['v_SIGMA'],bins=bins,alpha=0.8,label='SNR',color=tab10[0])
 
     ax3.set_xlabel(r'$\sigma_V$ / km s$^{-1}$')
     ax3.axvline(100,c='black',lw=0.6) 
@@ -292,8 +293,8 @@ def compare_distances(name,distance,plus,minus,filename=None):
     mpl.use('pgf')
     mpl.rcParams['pgf.preamble'] = [r'\usepackage[hidelinks]{hyperref}', ]
 
-    distances = ascii.read(basedir / 'data' / 'external' / f'{name}.csv')
-    references = ascii.read(basedir / 'data' / 'external' / f'paper_list.csv',encoding='utf8')
+    distances = ascii.read(basedir / 'data' / 'external' / f'{name}.csv',delimiter=',')
+    references = ascii.read(basedir / 'data' / 'external' / f'paper_list.csv',encoding='utf8',delimiter=',')
 
     ref_dict = {
     'Refcode' : list(references['Refcode']),

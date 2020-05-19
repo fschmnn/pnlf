@@ -21,6 +21,7 @@ import logging                 # use logging instead of print
 # ---------------------------------------------------------------------
 from collections import OrderedDict      # dict that remembers order
 import json                              # load and write json files
+import yaml
 import numpy as np                       # arrays
 import scipy as sp                       # useful functions
 
@@ -38,6 +39,7 @@ import astropy
 
 from astropy.table import Table,QTable   # useful datastructure
 from astropy.table import vstack         # combine multiple tables
+from astropy.nddata import NDData        # store image and header
 
 from astropy.io import ascii,fits        # open text and fits files
 
