@@ -387,3 +387,10 @@ def PNLF(bins,mu,mhigh,Mmax=-4.47):
     out[out<0] = 0
 
     return out
+
+
+def prior(mu):
+    mu0 = 29.91
+    std = 0.13
+    
+    return 1 / (std*np.sqrt(2*np.pi)) * np.exp(-(mu-mu0)**2 / (2*std**2))

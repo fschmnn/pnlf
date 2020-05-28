@@ -128,7 +128,13 @@ class ReadLineMaps:
                     if self.shape != data.shape: 
                         logger.warning('auxiliary product has different shape. Reprojecting')
                         data,_ = reproject_interp(hdul,self.header)
-                    
+
+                        # star_mask ist 0 or 1 (even for interpolated pixels)
+                        if description=='star_mask':
+                            data = np.round(data,0)
+                        elif description=='PSF':
+                            data = np.round(data,2)
+
                     setattr(self,description,data)
 
             else:
@@ -136,30 +142,6 @@ class ReadLineMaps:
 
         self.PSF *= _arcsec_to_pixel 
         
-        '''
-        if star_mask_file.is_file():
-            with fits.open(star_mask_file) as hdul:
-                self.star_mask = hdul[0].data
-        else:
-            logger.warning(f'no starmask available')
-
-        if av_file.is_file():    
-            with fits.open(av_file) as hdul:
-                self.Av = hdul[0].data
-        else:
-            logger.warning(f'no AV map available')
-
-        # we also load a file with information about the PSF
-        if seeing_map_file.is_file():
-            try:
-                data = fits.getdata(seeing_map_file,extname=f'DATA')
-                setattr(self,'PSF',data*_arcsec_to_pixel)
-            except:
-                logger.warn(f'could not read seeing information for {self.name}')
-        else:
-            logger.warn(f'"{self.name}_seeing.fits" does not exists.')
-        '''   
-
         logger.info(f'file loaded with {len(self.lines)} extensions')
 
     def __repr__(self):

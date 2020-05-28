@@ -87,11 +87,11 @@ def detect_unresolved_sources(
     if not np.any(exclude_region):
         exclude_region = np.zeros(data.shape,dtype=bool)
     else:
-        print(f'masking {np.sum(exclude_region)/np.prod(exclude_region.shape)*100:.2f} % of the image')
+        logger.info(f'masking {np.sum(exclude_region)/np.prod(exclude_region.shape)*100:.2f} % of the image')
 
     logger.info(f'searching for sources in {self.name} with [{line}] line map (using ' + \
           str(StarFinder).split('.')[-1][:-2] + ')\n' )
-    logger.info(daoargs) 
+    logger.info(','.join([f'{k}: {v} ' for k,v in daoargs.items()])) 
     #mean, median, std = sigma_clipped_stats(data[~np.isnan(PSF)], sigma=3.,maxiters=None)
 
     try:

@@ -355,7 +355,7 @@ def compare_distances(name,distance,plus,minus,filename=None):
     distances.sort(['sort_order','year'])
     distances['y'] = np.arange(1,len(distances)+1)
 
-    fig = plt.figure(figsize=(single_column,0.15*len(distances)))
+    fig = plt.figure(figsize=(single_column,0.25*len(distances)))
     ax = fig.add_subplot(1,1,1)
 
     ax.fill_betweenx(np.arange(0,len(distances)+2), distance-minus, distance+plus,facecolor=tab10[0], alpha=0.4)
