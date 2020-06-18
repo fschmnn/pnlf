@@ -57,6 +57,16 @@ In principle one could clone this repository from [github](https://github.com/fs
 
 And that's it. You may have noticed that the project already contains folders and files for unit test and documentations. However neither are currently used but both should eventually be added.
 
+The raw data for the project is supposed to be stores in `/data/raw`. However since I do not have enough space on my hard drive, I keep those files on an external drive. For easy access I created a symbolic link between the two folders like so 
+
+```
+mklink /J data/raw g:\Archive
+```
+
+(see this [link](https://www.howtogeek.com/howto/16226/complete-guide-to-symbolic-links-symlinks-on-windows-or-linux/) for more information on symbolic links)
+
+
+
 ## Project structure
 
 The structure of this project was inspired by [this blog post](https://florianwilhelm.info/2018/11/working_efficiently_with_jupyter_lab/) and was set up using [PyScaffold 3.2.3](https://pyscaffold.org/). It consists of the following files and folders: 

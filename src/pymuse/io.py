@@ -118,7 +118,6 @@ class ReadLineMaps:
         seeing_map_file = folder / 'AUXILIARY' / 'seeing_maps' / f'{self.name}_seeing.fits'
         av_file = folder  / 'AUXILIARY' / 'AVmaps' / f'{self.name}_AV.fits'
 
-
         for filename, description in zip([star_mask_file,seeing_map_file,av_file],["star_mask","PSF","Av"]):
 
             if filename.is_file():
@@ -385,7 +384,7 @@ def write_LaTeX(table,galaxy,filename):
 
 
         
-    logger.info('table saved to files')
+    logger.info(f'table saved to files (for {galaxy.name})')
 
 
 def read_catalogue(filename):

@@ -156,7 +156,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
             # the local background subtraction estimates the background for 
             # each source individually 
-            r_in  = 5 * fwhm / 2  * PSF_correction
+            r_in  = 4 * fwhm / 2  * PSF_correction
             r_out = np.sqrt(3*r**2+r_in**2)
             annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
             annulus_masks = annulus_aperture.to_mask(method='center')
@@ -255,7 +255,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         logger.info(f'lambda{wavelength}: Av={-2.5*np.log10(extinction_mw):.2f}')
         
         #extinction_int = extinction_model.extinguish(wavelength*u.angstrom,Av=flux['Av'])
-        extinction_int = extinction_model.extinguish(wavelength*u.angstrom,Ebv=flux['Ebv'])
+        extinction_int = extinction_model.extinguish(wavelength*u.angstrom,Av=flux['Av'])
 
         flux[k] = v['flux'] 
         if extinction == 'MW' or extinction=='all':

@@ -173,7 +173,10 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
            tbl = tbl[tbl['SNRorPN']] 
            print(f'SNR or PN: {len(tbl[tbl["mOIII"]<completeness])} objects')
            ax1.errorbar(tbl['mOIII']-mu,tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']), marker='x',ms=2,mec=tab10[0],ls='none') 
-
+   
+    # objects that were rejeceted by eye
+    tbl = table[table['exclude']]
+    ax1.errorbar(tbl['mOIII']-mu,tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),marker='o',ms=3,ls='none',color='tab:green') 
 
     ax1.set(xlim=[-5,np.ceil(completeness-mu)],
            ylim=[0.03,200],
@@ -207,6 +210,8 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
            tbl = tbl[tbl['SNRorPN']] 
            ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']), marker='x',ms=2,mec=tab10[0],ls='none') 
 
+    tbl = table[table['exclude']]
+    ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']),marker='o',ms=3,ls='none',color='tab:green') 
 
     ax2.legend()
 
@@ -253,48 +258,62 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     if not final:
         plt.show()
 
+Methods = {
+ 'Ring Diameter' : 'RD',
+ 'Grav. Stability Gas. Disk' : 'GSGD',
+ 'Brightest Stars' : 'BS',
+ 'SNII optical' : 'SNII',
+ 'Tully-Fisher' : 'TF',
+ 'Disk Stability' : 'DS',
+ 'Statistical' : 'Stat',
+ 'Tully est' : 'TE'
+}
+
 importance = [
 'PNLF',
 'TRGB',
 'Cepheids',
 'SNIa',
-'SNII optical',
-'Tully-Fisher',  
-'Tully est',
-'Brightest Stars',
-'Grav. Stability Gas. Disk',
-'Disk Stability',
+'SNII',
+'TF',  
+'TE',
+'BS',
+'GSGD',
+'DS',
 'IRAS',
-'Ring Diameter',
+'RD',
 'Sosies',
-'Statistical',
+'Stat',
 ]
 importance = importance[::-1]
 
 colors = {
-'Brightest Stars':'#9c755f',
+'BS':'#9c755f',
 'Cepheids':'#59a14e',
-'Grav. Stability Gas. Disk':'#76b7b2',
-'Disk Stability':'#76b7b2',
+'GSGD':'#76b7b2',
+'DS':'#76b7b2',
 'IRAS':'#ff9da7',
 'PNLF':'#edc949',
-'Ring Diameter':'#bab0ac',
-'SNII optical':'#4e79a7',
+'RD':'#bab0ac',
+'SNII':'#4e79a7',
 'SNIa':'#76b7b2',
 'Sosies':'#9c755f',
-'Statistical':'#bab0ac',
+'Stat':'#bab0ac',
 'TRGB':'#f28e2b',
-'Tully est':'#b07aa2',
-'Tully-Fisher':'#b07aa2'
+'TE':'#b07aa2',
+'TF':'#b07aa2'
 }
+from astropy.table import Table
+
+
 
 def compare_distances(name,distance,plus,minus,filename=None):
     
     mpl.use('pgf')
-    mpl.rcParams['pgf.preamble'] = [r'\usepackage[hidelinks]{hyperref}', ]
+    mpl.rcParams['pgf.preamble'] = [r'\usepackage[hidelinks]{hyperref}',]
 
-    distances = ascii.read(basedir / 'data' / 'external' / f'{name}.csv',delimiter=',')
-    references = ascii.read(basedir / 'data' / 'external' / f'paper_list.csv',encoding='utf8',delimiter=',')
+    distances = ascii.read(basedir / 'data' / 'literature distances' / f'{name}.csv',delimiter=',',comment='#')
+    references = ascii.read(basedir / 'data' / 'literature distances' / f'paper_list.csv',encoding='utf8',delimiter=',')
 
     ref_dict = {
     'Refcode' : list(references['Refcode']),
@@ -333,29 +352,79 @@ def compare_distances(name,distance,plus,minus,filename=None):
     base_url = 'https://ui.adsabs.harvard.edu/abs/'
     distances['link'] = [f'\href{{{base_url + row["Refcode"]}}}{{{row["name"]}}}' for row in distances]
 
-
     # ugly workaround 
     # some papers publish more than one distance. We use only the one with the smallest uncertainty
-    distances = distances[np.abs(distances['(m-M)']-distance)<1]
+    #distances = distances[np.abs(distances['(m-M)']-distance)<1]
     
+    '''
+    distances['i'] = np.arange(0,len(distances))
     remove = []
     for i,row in enumerate(distances):
-
         name = row['name']
         sub = distances[np.where(distances['name']==name)]
         if len(sub) > 1:
             if row['err(m-M)'] > np.min(sub['err(m-M)']):
                 remove.append(i)
+    
+    # only show the 5 most recent results for each method
+    for method in np.unique(distances['Method']):
+        sub = distances[distances['Method']==method].copy()
+        if len(sub)>5:
+            sub.sort('year')
+            remove += list(sub[:-5]['i'])
+    remove = list(set(remove))
+
     remove.sort(reverse=True)
     for i in remove:
         distances.remove_row(i)
-    
+    '''
 
+    methods = []
+    year    = []
+    DM      = []
+    errDM   = []
+    links   = []
+    marker  = []
+    ref     = []
+    names   = []
+
+    for g in distances.group_by('Refcode').groups:
+        methods.append(Methods.get(g['Method'][0],g['Method'][0]))
+        year.append(g['year'][0])
+        links.append(g['link'][0])
+        DM.append(g['(m-M)'].mean())
+        errDM.append(np.sqrt(np.sum(g['err(m-M)']**2)))
+        ref.append(g['Refcode'][0])
+        names.append(g['name'][0])
+        if len(g)==1:
+            marker.append('o')
+        else:
+            marker.append('D')
+
+    distances = Table([methods,year,DM,errDM,links,marker,ref,names],names=['Method','year','(m-M)','err(m-M)','link','marker','Refcode','name'])
+
+    # only show the 5 most recent results for each method
+    distances['i'] = np.arange(0,len(distances))
+    remove=[]
+    for method in np.unique(distances['Method']):
+        sub = distances[distances['Method']==method].copy()
+        if len(sub)>5:
+            sub.sort('year')
+            remove += list(sub[:-5]['i'])
+    remove = list(set(remove))
+
+    remove.sort(reverse=True)
+    for i in remove:
+        distances.remove_row(i)
+
+    # distances requires [Method,year,(m-M),err(m-M),link] as columns
     distances['sort_order'] = [importance.index(row['Method']) for row in distances]
     distances.sort(['sort_order','year'])
     distances['y'] = np.arange(1,len(distances)+1)
-
-    fig = plt.figure(figsize=(single_column,0.25*len(distances)))
+    if len(distances)>7:
+        fig = plt.figure(figsize=(single_column,0.15*len(distances)),tight_layout=True)
+    else:
+        fig = plt.figure(figsize=(single_column,0.22*len(distances)),tight_layout=True)
     ax = fig.add_subplot(1,1,1)
 
     ax.fill_betweenx(np.arange(0,len(distances)+2), distance-minus, distance+plus,facecolor=tab10[0], alpha=0.4)
@@ -366,28 +435,58 @@ def compare_distances(name,distance,plus,minus,filename=None):
     method_labels = np.unique(distances['Method'])
     for i,group in enumerate(distances.group_by('Method').groups):
         m = group[0]['Method']
-        ax.errorbar(group['(m-M)'],group['y'],xerr=group['err(m-M)'],color=colors[m],ls='none',fmt='o',ms=3)
+        for row in group:
+            ax.errorbar(row['(m-M)'],row['y'],xerr=row['err(m-M)'],color=colors[m],ls='none',fmt=row['marker'],ms=3)
         method_ticks.append(np.mean(group['y']))
         ax.axhline(np.max(group['y'])+0.5,color='gray',lw=0.5)
 
-    #for row in distances:
-    #    ax.annotate(row['link'], (0, row['y']),fontsize=2,color='black')
-
-    ax.set_yticks(distances['y'],minor=False)
-    ax.set_yticklabels(distances['link'])
     ax.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.25))
     ax.set_xlabel(r'$(m-M)\ /\ \mathrm{mag}$')
+
+    ax.set_yticks(method_ticks,minor=False)
+    ax.set_yticklabels(method_labels,ha='right')
     ax.set_ylim([0.5,len(distances)+0.5])
 
     ax2 = ax.twinx()
-    ax2.set_yticks(method_ticks,minor=False)
-    ax2.set_yticklabels(method_labels)
+    ax2.set_yticks(distances['y'],minor=False)
+    ax2.set_yticklabels(distances['link'],ha="left")
     ax2.set_ylim([0.5,len(distances)+0.5])
 
-    plt.tight_layout()
+    #for lab in ax.yaxis.get_ticklabels():
+    #    lab.set_horizontalalignment("left")
+    #fontsize = ax.yaxis.get_ticklabels()[0].get_size()
+    #ax.tick_params(axis='y', pad=fontsize-.8)
+
+    #plt.tight_layout()
 
     if filename:
         plt.savefig(filename.with_suffix('.pdf'),bbox_inches='tight')
-        plt.savefig(filename.with_suffix('.pgf'),bbox_inches='tight')
+        plt.savefig(filename.with_suffix('.pgf'))
+
+    # replace the link in the pgf document with a 
+    #    \defcitealias{bibkey}{Author+year} 	
+    #    \citetalias{bibkey} 
+    # some papers are cited in the body and hence have a different key
+    existing_keys = {
+       '2017ApJ...834..174K' : 'Kreckel+2017',
+       '2008ApJ...683..630H' : 'Herrmann+2008',
+       '2002ApJ...577...31C' : 'Ciardullo+02'
+    }
+
+    with open(basedir / 'reports' / 'citealias.tex','r',encoding='utf8') as f:
+        citealias = set(f.read().split('\n'))
+
+    with open(filename.with_suffix('.pgf'),'r',encoding='utf8') as f:
+        text = f.read()
+        for row in distances:
+            row['Refcode'] = existing_keys.get(row["Refcode"],row["Refcode"])
+            text=text.replace(row['link'],f'\citetalias{{{row["Refcode"]}}}')
+            citealias.add(f'\defcitealias{{{row["Refcode"]}}}{{{row["name"]}}}')
+    
+    with open(filename.with_suffix('.pgf'),'w',encoding='utf8') as f:
+        f.write(text)
+
+    with open(basedir / 'reports' / 'citealias.tex','w',encoding='utf8') as f:
+        f.write('\n'.join(sorted(citealias)))
 
     plt.show()

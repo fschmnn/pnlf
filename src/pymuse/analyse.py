@@ -56,14 +56,14 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
         The input table with an additional column, indicating the type of the object
     '''
     
-    # next we check if all columns exist
+    # we check if all columns exist
     required = ['OIII5006','HA6562','NII6583','SII6716','mOIII']
     missing = set(required) - set(table.columns)
     if missing:
         raise KeyError(f'input table is missing {", ".join(missing)}')
     del missing
        
-    # we don't want to modift the input table
+    # we don't want to modift the original input table
     table = table.copy()
 
     logger.info(f'{len(table)} entries in initial catalogue')
@@ -71,6 +71,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
 
     # make sure that the new column can save strings with 3 characters
     table['type'] = np.empty(len(table),dtype='U3')
+    # we start with the assumption that all sources are PN and remove contaminants later
     table['type'][:] = 'PN'
 
     # we set negative fluxes to the error (0 would cause because we work with ratios)
@@ -90,6 +91,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     table['HA6562_S/N']   =  table['HA6562']/table['HA6562_err']
     table['SII6716_S/N']  =  table['SII6716']/table['SII6716_err'] 
 
+    # use the velocity dispersion with the highest singal to noise
     table['v_SIGMA']     = table['OIII5006_SIGMA']
     table['v_SIGMA_S/N'] = table['OIII5006_S/N'] 
 
@@ -113,8 +115,9 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     criteria['HII'] = (table['R'] + table['dR'] < -0.37*table['MOIII'] - 1.16) #& (table['HA6562_detection'] | table['NII6583_detection'])
     
     criteria['SNR'] = ((table['HA6562']) / (table['SII6716']) < 2.5)  & (table['SII6716_detection']) 
-    # only apply this criteria if signal to noise is > 3
-    criteria['SNR'] |= ((table['v_SIGMA']>100) & (table['v_SIGMA_S/N']>10)) & (table['HA6562_S/N']<3)
+    # only apply this criteria if signal to noise is < 3
+    # we underestimate the error and hence S/N is too big. This justifies using 3 instead of 1
+    #criteria['SNR'] |= ((table['v_SIGMA']>100) & (table['v_SIGMA_S/N']>9)) & (table['HA6562_S/N']<3)
 
     # objects that would be classified as PN by narrowband observations
     table['SNRorPN'] = criteria['SNR'] & ~criteria['HII']
