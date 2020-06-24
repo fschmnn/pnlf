@@ -139,6 +139,14 @@ class ReadLineMaps:
             else:
                 logger.warning(f'no {description} available')
 
+        if not hasattr(self,'star_mask'):
+            self.star_mask = np.zeros_like(self.OIII5006)
+
+        if not hasattr(self,'PSF'):
+            # for DR2 galaxies where no PSF data exists we assume FWHM=1" for all pointings
+            logger.warning('creating 1" seeing map')
+            self.PSF = np.ones_like(self.OIII5006)
+            self.PSF[np.isnan(self.OIII5006)] = np.nan
         self.PSF *= _arcsec_to_pixel 
         
         logger.info(f'file loaded with {len(self.lines)} extensions')

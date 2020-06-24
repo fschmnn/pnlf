@@ -4,25 +4,130 @@ from pathlib import Path
 import numpy as np
 
 import matplotlib as mpl
-from matplotlib.backends.backend_pdf import PdfPages
+#from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.pyplot import figure, show, savefig
 import matplotlib.pyplot as plt
 
 from astropy.io import ascii
-from astroquery.nasa_ads import ADS
-
+from astropy.table import Table
 
 from ..analyse import PNLF
 
 basedir = Path(__file__).parent.parent.parent.parent
 
-ADS.TOKEN = open(basedir/'notebooks'/'ADS_DEV_KEY','r').read()
 
 from ..constants import tab10, single_column, two_column
 
+def _plot_pnlf(data,mu,completeness,binsize=0.4,mlow=None,mhigh=None,Mmax=-4.47,color='tab:red',alpha=1,ax=None):
+    '''Plot PNLF
+
+    this function plots a minimalistic PNLF (without labels etc.)
+    '''
+    
+    # the fit is normalized to 1 -> multiply with number of objects
+    N = len(data[data<completeness])
+    if not mlow:
+        mlow = Mmax+mu
+    if not mhigh:
+        mhigh = completeness+2
+    
+    hist, bins  = np.histogram(data,np.arange(mlow,mhigh,binsize),normed=False)
+    err = np.sqrt(hist)
+    # midpoint of the bins is used as position for the plots
+    m = (bins[1:]+bins[:-1]) / 2
+    
+    # for the fit line we use a smaller binsize
+    binsize_fine = 0.1
+    bins_fine = np.arange(mlow,mhigh,binsize_fine)
+    m_fine = (bins_fine[1:]+bins_fine[:-1]) /2
+    hist_fine, _ = np.histogram(data,bins_fine,normed=False)
+
+    if not ax:
+        # create an empty figure
+        fig = figure(figsize=(single_column,single_column))
+        #fig = figure(figsize=(6.974,6.974/2))
+        ax = fig.add_subplot(1,1,1)
+    else:
+        fig = ax.get_figure()
+
+    # scatter plot
+    ax.errorbar(m[m<completeness],hist[m<completeness],yerr=err[m<completeness],
+                 marker='o',ms=6,mec=color,mfc=color,ls='none',ecolor=color,alpha=alpha)
+    ax.errorbar(m[m>=completeness],hist[m>=completeness],yerr=err[m>completeness],
+                 marker='o',ms=6,mec=color,mfc='white',ls='none',ecolor=color,alpha=alpha)
+    ax.plot(m_fine,binsize/binsize_fine*N*PNLF(bins_fine,mu=mu,mhigh=completeness),c=color,ls='dotted')
+
+    ax.set_yscale('log')
+    ax.set_xlim([1.1*mlow-0.1*mhigh,mhigh])
+    ax.set_ylim([0.8,1.5*np.max(hist)])
+    
+    ax.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.3g}'.format(y)))
+    ax.xaxis.set_major_locator(mpl.ticker.MultipleLocator(1))
+    ax.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.25))
+
+    plt.tight_layout()
+
+    return ax
+
+
+def _plot_cum_pnlf(data,mu,completeness=None,binsize=None,mlow=None,mhigh=None,Mmax=-4.47,color='tab:red',alpha=1,ax=None):
+    '''Plot cumulative PNLF
+
+    this function plots a minimalistic cumulative PNLF (without labels etc.)
+    '''
+    
+    if not completeness:
+        completeness = max(data)+1
+    N = len(data[data<completeness])
+    if not mlow:
+        mlow = Mmax+mu
+    if not mhigh:
+        mhigh = completeness+2
+    
+    hist, bins  = np.histogram(data,np.arange(mlow,mhigh,binsize),normed=False)
+    err = np.sqrt(hist)
+    # midpoint of the bins is used as position for the plots
+    m = (bins[1:]+bins[:-1]) / 2
+    
+    # for the fit line we use a fixed binsize
+    binsize_fine = 0.1
+    bins_fine = np.arange(mlow,mhigh,binsize_fine)
+    m_fine = (bins_fine[1:]+bins_fine[:-1]) /2
+    hist_fine, _ = np.histogram(data,bins_fine,normed=False)
+
+    if not ax:
+        # create an empty figure
+        fig = figure(figsize=(single_column,single_column))
+        #fig = figure(figsize=(6.974,6.974/2))
+        ax = fig.add_subplot(1,1,1)
+    else:
+        fig = ax.get_figure()
+
+    if binsize:
+        bins = np.arange(mlow,mhigh,binsize)
+        m = (bins[1:]+bins[:-1]) /2
+        hist,_ = np.histogram(data,bins,density=False)
+        ax.plot(m[m<completeness],np.cumsum(hist[m<completeness]),ls='none',mfc=color,mec=color,ms=2,marker='o')
+    else:
+        data.sort()
+        ax.plot(data,np.arange(1,len(data)+1,1),ls='none',mfc=color,mec=color,ms=2,marker='o',alpha=alpha)
+    
+    ax.plot(m_fine,N*np.cumsum(PNLF(bins_fine,mu=mu,mhigh=completeness)),ls='dotted',color=color)
+    
+    # adjust plot    
+    ax.set_xlim([mlow,completeness+0.2])
+    ax.set_ylim([-0.1*N,1.1*N])
+    
+    ax.xaxis.set_major_locator(mpl.ticker.MultipleLocator(1.0))
+    ax.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.25))
+    ax.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.16g}'.format(y)))
+
+    plt.tight_layout()
+
+    return ax
 
 def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
-              filename=None,metadata=None,color='tab:red',alpha=1,axes=None):
+              filename=None,color='tab:red',alpha=1,axes=None):
     '''Plot Planetary Nebula Luminosity Function
     
     
@@ -50,88 +155,35 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
     # sometimes the pgf backend crashes
     mpl.use('agg')
 
-    Mmax = -4.47
-    
-    # the fit is normalized to 1 -> multiply with number of objects
-    N = len(data[data<completeness])
-    if not mlow:
-        mlow = Mmax+mu
-    if not mhigh:
-        mhigh = completeness+2
-    
-    hist, bins  = np.histogram(data,np.arange(mlow,mhigh,binsize),normed=False)
-    err = np.sqrt(hist)
-    # midpoint of the bins is used as position for the plots
-    m = (bins[1:]+bins[:-1]) / 2
-    
-    # for the fit line we use a smaller binsize
-    binsize_fine = 0.1
-    bins_fine = np.arange(mlow,mhigh,binsize_fine)
-    m_fine = (bins_fine[1:]+bins_fine[:-1]) /2
-    hist_fine, _ = np.histogram(data,bins_fine,normed=False)
 
     if not axes:
         # create an empty figure
         fig = figure(figsize=(two_column,two_column/2))
-        #fig = figure(figsize=(6.974,6.974/2))
         ax1 = fig.add_subplot(1,2,1)
         ax2 = fig.add_subplot(1,2,2)
     else:
         ax1,ax2 = axes 
         fig = ax1.get_figure()
 
-    #fig.set_facecolor((223/255,207/255,187/255))
-    #ax1.set_facecolor((223/255,207/255,187/255))
+    ax1 = _plot_pnlf(data,mu,completeness,binsize=binsize,mlow=mlow,mhigh=mhigh,color=color,alpha=alpha,ax=ax1)
+    ax2 = _plot_cum_pnlf(data,mu,completeness,binsize=None,mlow=mlow,mhigh=mhigh,color=color,alpha=alpha,ax=ax2)
 
-    # scatter plot
-    ax1.errorbar(m[m<completeness],hist[m<completeness],yerr=err[m<completeness],
-                 marker='o',ms=6,mec=color,mfc=color,ls='none',ecolor=color,alpha=alpha)
-    ax1.errorbar(m[m>=completeness],hist[m>=completeness],yerr=err[m>completeness],
-                 marker='o',ms=6,mec=color,mfc='white',ls='none',ecolor=color,alpha=alpha)
-    ax1.plot(m_fine,binsize/binsize_fine*N*PNLF(bins_fine,mu=mu,mhigh=completeness),c=color,ls='dotted')
-    #ax1.axvline(completeness,c='black',lw=0.2)
-    #ax1.axvline(mu+Mmax,c='black',lw=0.2)
-
-    # adjust plot
-    ax1.set_yscale('log')
-    ax1.set_xlim([1.1*mlow-0.1*mhigh,mhigh])
-    ax1.set_ylim([0.8,1.5*np.max(hist)])
     ax1.set_xlabel(r'$m_{[\mathrm{OIII}]}$ / mag')
     ax1.set_ylabel(r'$N$')
-    
-    ax1.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.2g}'.format(y)))
-    ax1.xaxis.set_major_locator(mpl.ticker.MultipleLocator(1))
-    ax1.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.25))
 
-    # cumulative
-    #ax2.plot(m_fine[m_fine<=completeness],np.cumsum(hist_fine[m_fine<=completeness]),ls='none',mfc=color,mec=color,ms=4,marker='o',alpha=alpha)
-    data.sort()
-    ax2.plot(data,np.arange(1,len(data)+1,1),ls='none',mfc=color,mec=color,ms=2,marker='o',alpha=alpha)
-    ax2.plot(m_fine,N*np.cumsum(PNLF(bins_fine,mu=mu,mhigh=completeness)),ls='dotted',color=color)
-    
-    # adjust plot    
-    ax2.set_xlim([mlow,completeness+0.2])
-    ax2.set_ylim([-0.1*N,1.2*N])
     ax2.set_xlabel(r'$m_{[\mathrm{OIII}]}$ / mag')
     ax2.set_ylabel(r'Cumulative N')
-    
-    ax2.xaxis.set_major_locator(mpl.ticker.MultipleLocator(1.0))
-    ax2.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.25))
-    ax2.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.16g}'.format(y)))
 
     plt.tight_layout()
 
     if filename:
-        #savefig(filename.with_suffix('.pgf'),bbox_inches='tight')
         savefig(filename.with_suffix('.pdf'),bbox_inches='tight')
-        #savefig(filename.with_suffix('.png'),bbox_inches='tight',dpi=600,facecolor=(223/255,207/255,187/255))
-
-        #with PdfPages(filename.with_suffix('.pdf')) as pdf:
-        #    pdf.savefig(fig,metadata= {'Creator': 'matplotlib', 'Author': 'FS', 'Title': 'NGC628'})
     else:
         plt.show()
 
     return (ax1,ax2)
+
+
 
 
 def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
@@ -303,12 +355,12 @@ colors = {
 'TE':'#b07aa2',
 'TF':'#b07aa2'
 }
-from astropy.table import Table
-
-
 
 def compare_distances(name,distance,plus,minus,filename=None):
-    
+    '''Compare the measured distance to literature values from NED
+
+    '''
+
     mpl.use('pgf')
     mpl.rcParams['pgf.preamble'] = [r'\usepackage[hidelinks]{hyperref}',]
 
@@ -325,6 +377,9 @@ def compare_distances(name,distance,plus,minus,filename=None):
     # search for missing references
     for bibcode in distances['Refcode']:
         if bibcode not in ref_dict['Refcode']:
+            # this shouldn't happen too often. So we open it in this loop
+            from astroquery.nasa_ads import ADS
+            ADS.TOKEN = open(basedir/'notebooks'/'ADS_DEV_KEY','r').read()
             try:
                 result = ADS.query_simple(bibcode)
                 ref_dict['Refcode'].append(bibcode)
@@ -339,7 +394,7 @@ def compare_distances(name,distance,plus,minus,filename=None):
         references = Table(ref_dict)
 
         references.sort('Refcode',reverse=True)
-        with open(basedir / 'data' / 'external' / f'paper_list.csv','w',encoding='utf8',newline='\n') as f:
+        with open(basedir / 'data' / 'literature distances' / f'paper_list.csv','w',encoding='utf8',newline='\n') as f:
             ascii.write(references,f,format='csv',overwrite=True,delimiter=',')
 
     references.add_index('Refcode')
@@ -470,7 +525,7 @@ def compare_distances(name,distance,plus,minus,filename=None):
     existing_keys = {
        '2017ApJ...834..174K' : 'Kreckel+2017',
        '2008ApJ...683..630H' : 'Herrmann+2008',
-       '2002ApJ...577...31C' : 'Ciardullo+02'
+       '2002ApJ...577...31C' : 'Ciardullo+2002'
     }
 
     with open(basedir / 'reports' / 'citealias.tex','r',encoding='utf8') as f:
