@@ -166,38 +166,44 @@ def classification_map_small(galaxy,parameters,tbl,filename):
     wcs=galaxy.wcs
     # ============================================================
 
-    from pymuse.plot.plot import create_RGB
     #rgb = create_RGB(galaxy.HA6562,galaxy.OIII5006,galaxy.SII6716,percentile=97)
-    rgb = create_RGB(galaxy.HA6562,galaxy.OIII5006_DAP,galaxy.SII6716,weights=[0.99,0.99,0.99],percentile=[99,99.5,98])
+    r,g,b = galaxy.HA6562,galaxy.OIII5006_DAP,galaxy.SII6716
+
+    # create an empty array with teh correct size
+    rgb = np.empty((*r.shape,3))
+    
+    g=np.power(1.3,g)
+    percentile = [99,97.5,99]
+    # assign the input arrays to the 3 channels and normalize them to 1
+    rgb[...,0] = r / np.nanpercentile(r,percentile[0])
+    rgb[...,1] = g / np.nanpercentile(g,percentile[1])
+    rgb[...,2] = b / np.nanpercentile(b,percentile[2])
+    rgb = np.clip(np.nan_to_num(rgb,nan=1),a_min=0,a_max=1)
 
     table = tbl
     #table = tbl[tbl['mOIII']<galaxy.completeness_limit]
 
-    fig = plt.figure(figsize=(single_column,single_column/2))
+    fig = plt.figure(figsize=(two_column,two_column/2))
     ax1 = fig.add_subplot(121,projection=wcs)
     ax2 = fig.add_subplot(122,projection=wcs)
 
     norm = simple_norm(galaxy.OIII5006_DAP,'linear',clip=False,max_percent=95)
-    ax1.imshow(galaxy.OIII5006_DAP,norm=norm,cmap=plt.cm.gray)
+    ax1.imshow(galaxy.OIII5006_DAP,norm=norm,cmap=plt.cm.gray_r)
 
     ax2.imshow(rgb)
 
-    print(f'{len(table)} sources')
-    for t,c in zip(['SNR','PN'],['royalblue','goldenrod']):
         
-        sub = table[table['type']==t]
-        print(f'{t:<3}: {len(sub):>3}')
-        positions = np.transpose([sub['x'],sub['y']])
-        apertures = CircularAperture(positions, r=6)
-        #ax1.scatter(sub['x'],sub['y'],marker='o',s=5,lw=0.4,edgecolor=c,facecolors='none')
-        apertures.plot(color=c,lw=.1, alpha=1,ax=ax1)
-        apertures.plot(color=c,lw=.1, alpha=1,ax=ax2)
+    sub = table[table['type']=='PN']
+    positions = np.transpose([sub['x'],sub['y']])
+    apertures = CircularAperture(positions, r=7)
+    apertures.plot(color='green',lw=.3, alpha=1,ax=ax1)
+    apertures.plot(color='white',lw=.2, alpha=1,ax=ax2)
     
     # first we create a legend with three invisible handles
     labels=['HA6562','OIII5006','SII6716']
     labels=[r'H$\alpha$',r'[OIII]',r'[SII]']
     handles = 3*[mpl.patches.Rectangle((0, 0), 0, 0, alpha=0.0)]
-    leg = ax2.legend(handles,labels, frameon=True,framealpha=0.7,handlelength=0,prop={'size': 6},loc=3)
+    leg = ax2.legend(handles,labels,bbox_to_anchor=(0.5,-0.05), ncol=3,frameon=True,framealpha=0.9,handlelength=0,prop={'size': 8},loc='center')
 
     # next we set the color of the three labels
     for color,text in zip(['red','green','blue'],leg.get_texts()):
@@ -221,6 +227,8 @@ def classification_map_small(galaxy,parameters,tbl,filename):
     ax1.coords[1].set_ticks(number=4)
     ax2.coords[0].set_ticklabel_visible(False)
     ax2.coords[1].set_ticklabel_visible(False)
+    ax2.coords[0].set_ticks_visible(False)
+    ax2.coords[1].set_ticks_visible(False)
     #plt.subplots_adjust(wspace=-0.4)
 
     # it is a bit tricky to get the coordinates right (because data uses the wcs coordinates)
@@ -235,4 +243,4 @@ def classification_map_small(galaxy,parameters,tbl,filename):
                                       axesA=ax1, axesB=ax2, color="black",linewidth=0.3)
     ax2.add_artist(con)
 
-    plt.savefig(filename,bbox_inches='tight',dpi=800)
+    plt.savefig(filename,bbox_inches='tight',dpi=900)

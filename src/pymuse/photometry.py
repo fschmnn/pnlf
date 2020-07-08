@@ -194,6 +194,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
             # correct for flux that is lost outside of the aperture
             phot['flux'] /= light_in_moffat(r,alpha,gamma)
+            #phot['flux'] /= light_in_gaussian(r,fwhm)
             
             # save fwhm in an additional column
             phot['fwhm'] = fwhm

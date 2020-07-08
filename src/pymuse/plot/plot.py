@@ -12,6 +12,7 @@ from astropy.visualization import simple_norm
 
 from astropy.nddata import Cutout2D
 import random
+from scipy.stats import spearmanr
 
 from photutils import CircularAperture         # define circular aperture
 
@@ -65,17 +66,16 @@ def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
 
     fig = figure(figsize=(6.974,6.974/2))
     ax = fig.add_subplot(111, projection=wcs)
-    vmax = np.nanpercentile(data,95)
-    norm = simple_norm(data[~np.isnan(data)], 'linear',max_percent=98.,clip=False)
-    cmap = plt.cm.Blues_r
+    norm = simple_norm(data,'asinh',clip=False,min_percent=1,max_percent=98)
+    cmap = plt.cm.gray_r
     cmap.set_bad('w')
 
     plt.imshow(data, 
                origin='lower',
                cmap=cmap, 
-               #norm=norm,
+               norm=norm,
                #interpolation='none',
-               vmax=vmax
+               #vmax=vmax
               )
 
     colors = ['tab:red','tab:orange','tab:green']
@@ -154,14 +154,14 @@ def radial_profile(data, center):
  
 def single_cutout(self,x,y,size=32,aperture_size=None,percentile=99):
     '''create cutouts of a single sources and plot it'''
-    
+
     extension = 'OIII5006'
     data = getattr(self,extension)
     wcs  = self.wcs
     
     # defien the size of the cutout region
     star = Cutout2D(data, (x,y), u.Quantity((size, size), u.pixel),wcs=wcs)
-    
+
     profile = radial_profile(star.data,star.input_position_cutout)
     #fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(20, 20),squeeze=True)
     #ax = ax.ravel()    labels=['SII6716','HA6562','OIII5006'
@@ -180,7 +180,7 @@ def single_cutout(self,x,y,size=32,aperture_size=None,percentile=99):
     ax1 = fig.add_subplot(1,3,1)
     ax2 = fig.add_subplot(1,3,2)
     ax3 = fig.add_subplot(1,3,3)
-    
+
     norm = simple_norm(data,percent=99,clip=False)#, percent=99.)
     yslice = slice(int(x-size/2),int(x+size/2))
     xslice = slice(int(y-size/2),int(y+size/2))
@@ -205,7 +205,8 @@ def single_cutout(self,x,y,size=32,aperture_size=None,percentile=99):
 
     ax3.plot(profile)
     #ax3.set_xlabel(r'radius in px')
-
+    #cor= spearmanr(np.arange(0,10,1),profile[:10]).correlation
+    #ax3.set_title(f'rho = {cor:.2f}')
     ax2.set_yticks([])
 
     return ax1,ax2,ax3
@@ -233,7 +234,7 @@ def create_RGB(r,g,b,weights=None,percentile=95):
     rgb : ndarray
         (n,m,3) array that is normalized to 1
     '''
-    
+
     if not r.shape == g.shape == b.shape:
         raise ValueError('input arrays must have the dimensions')
     

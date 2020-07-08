@@ -252,9 +252,12 @@ def filter_table(table,**kwargs):
 
 def uncertainties(mu,mu_plus,mu_minus):
     d       = Distance(distmod=mu)
-    d_plus  = Distance(distmod=mu+mu_plus) - Distance(distmod=mu)
-    d_minus = Distance(distmod=mu)-Distance(distmod=mu-mu_minus)
+    #d_plus  = Distance(distmod=mu+mu_plus) - Distance(distmod=mu)
+    #d_minus = Distance(distmod=mu)-Distance(distmod=mu-mu_minus)
     
+    d_plus = 0.2*np.log(10)*d*mu_plus
+    d_minus = 0.2*np.log(10)*d*mu_minus
+
     return d,d_plus,d_minus
 
 

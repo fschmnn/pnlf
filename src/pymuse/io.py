@@ -125,7 +125,7 @@ class ReadLineMaps:
                     data   = hdul[0].data
                     
                     if self.shape != data.shape: 
-                        logger.warning('auxiliary product has different shape. Reprojecting')
+                        logger.warning(f'{description} map has different shape. Reprojecting')
                         data,_ = reproject_interp(hdul,self.header)
 
                         # star_mask ist 0 or 1 (even for interpolated pixels)

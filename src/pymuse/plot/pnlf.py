@@ -1,5 +1,6 @@
 from .style import figsize, newfig, final
 
+import logging
 from pathlib import Path
 import numpy as np
 
@@ -10,11 +11,13 @@ import matplotlib.pyplot as plt
 
 from astropy.io import ascii
 from astropy.table import Table
+from astropy.coordinates import Distance
+import astropy.units as u
 
 from ..analyse import PNLF
 
 basedir = Path(__file__).parent.parent.parent.parent
-
+logger = logging.getLogger(__name__)
 
 from ..constants import tab10, single_column, two_column
 
@@ -52,9 +55,9 @@ def _plot_pnlf(data,mu,completeness,binsize=0.4,mlow=None,mhigh=None,Mmax=-4.47,
 
     # scatter plot
     ax.errorbar(m[m<completeness],hist[m<completeness],yerr=err[m<completeness],
-                 marker='o',ms=6,mec=color,mfc=color,ls='none',ecolor=color,alpha=alpha)
+                 marker='o',ms=6,mec=color,mfc=color,ls='none',ecolor=color,alpha=alpha,label=r'$m_\mathrm{[OIII]}<$completeness limit')
     ax.errorbar(m[m>=completeness],hist[m>=completeness],yerr=err[m>completeness],
-                 marker='o',ms=6,mec=color,mfc='white',ls='none',ecolor=color,alpha=alpha)
+                 marker='o',ms=6,mec=color,mfc='white',ls='none',ecolor=color,alpha=alpha,label=r'$m_\mathrm{[OIII]}>$completeness limit')
     ax.plot(m_fine,binsize/binsize_fine*N*PNLF(bins_fine,mu=mu,mhigh=completeness),c=color,ls='dotted')
 
     ax.set_yscale('log')
@@ -126,7 +129,7 @@ def _plot_cum_pnlf(data,mu,completeness=None,binsize=None,mlow=None,mhigh=None,M
 
     return ax
 
-def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
+def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,Mmax=-4.47,
               filename=None,color='tab:red',alpha=1,axes=None):
     '''Plot Planetary Nebula Luminosity Function
     
@@ -155,7 +158,7 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
     # sometimes the pgf backend crashes
     mpl.use('agg')
 
-
+    #logger.info(f'PNLF plot with {len(data)} points')
     if not axes:
         # create an empty figure
         fig = figure(figsize=(two_column,two_column/2))
@@ -165,8 +168,8 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,
         ax1,ax2 = axes 
         fig = ax1.get_figure()
 
-    ax1 = _plot_pnlf(data,mu,completeness,binsize=binsize,mlow=mlow,mhigh=mhigh,color=color,alpha=alpha,ax=ax1)
-    ax2 = _plot_cum_pnlf(data,mu,completeness,binsize=None,mlow=mlow,mhigh=mhigh,color=color,alpha=alpha,ax=ax2)
+    ax1 = _plot_pnlf(data,mu,completeness,binsize=binsize,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax1)
+    ax2 = _plot_cum_pnlf(data,mu,completeness,binsize=0.1,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax2)
 
     ax1.set_xlabel(r'$m_{[\mathrm{OIII}]}$ / mag')
     ax1.set_ylabel(r'$N$')
@@ -507,12 +510,18 @@ def compare_distances(name,distance,plus,minus,filename=None):
     ax2.set_yticklabels(distances['link'],ha="left")
     ax2.set_ylim([0.5,len(distances)+0.5])
 
-    #for lab in ax.yaxis.get_ticklabels():
-    #    lab.set_horizontalalignment("left")
-    #fontsize = ax.yaxis.get_ticklabels()[0].get_size()
-    #ax.tick_params(axis='y', pad=fontsize-.8)
-
-    #plt.tight_layout()
+    ax2.text
+    '''
+    # create second x-axis in Mpc
+    xmin,xmax=ax.get_xlim()
+    n=0.2
+    xticks_mpc = np.logspace(np.log10(Distance(distmod=np.ceil(xmin/n)*n).to(u.Mpc).value),np.log10(Distance(distmod=np.floor(xmax/n)*n).to(u.Mpc).value),4)
+    xticks_mu  = Distance(xticks_mpc*u.Mpc).distmod
+    ax3 = ax.twiny()
+    ax3.set_xticks(xticks_mu.value,minor=False)
+    ax3.set_xticklabels([f'{x:.2f}' for x in xticks_mpc],ha="left")
+    ax3.set(xlim=[xmin,xmax],ylabel='$D$ / Mpc')
+    '''
 
     if filename:
         plt.savefig(filename.with_suffix('.pdf'),bbox_inches='tight')

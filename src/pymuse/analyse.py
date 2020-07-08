@@ -100,8 +100,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     
     table['v_SIGMA'][np.where(table['SII6716_S/N']>table['v_SIGMA_S/N'])] = table['SII6716_SIGMA'][np.where(table['SII6716_S/N']>table['v_SIGMA_S/N'] )]
     table['v_SIGMA_S/N'][np.where(table['SII6716_S/N']>table['v_SIGMA_S/N'] )] = table['SII6716_S/N'][np.where(table['SII6716_S/N']>table['v_SIGMA_S/N'] )] 
-
-    logger.info('v_sigma: median={:.2f}, median={:.2f}, sig={:.2f}'.format(*sigma_clipped_stats(table['v_SIGMA'][~np.isnan(table['v_SIGMA'])])))
+    #logger.info('v_sigma: median={:.2f}, median={:.2f}, sig={:.2f}'.format(*sigma_clipped_stats(table['v_SIGMA'][~np.isnan(table['v_SIGMA'])])))
     
     # define ratio of OIII to Halpha and NII for the first criteria (with error). If NII is not detected we assume NII=0.5Halpha
     table['R']  =  np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583']))
@@ -112,7 +111,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     criteria = {}
     criteria[''] = (4 < (table['R']-table['dR'])) #& (table['HA6562_detection'])
     #criteria['HII'] = (10**(table['R']+table['dR']) < 1.6)
-    criteria['HII'] = (table['R'] + table['dR'] < -0.37*table['MOIII'] - 1.16) #& (table['HA6562_detection'] | table['NII6583_detection'])
+    criteria['HII'] = (table['R'] + table['dR'] < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'] | table['NII6583_detection'])
     
     criteria['SNR'] = ((table['HA6562']) / (table['SII6716']) < 2.5)  & (table['SII6716_detection']) 
     # only apply this criteria if signal to noise is < 3
