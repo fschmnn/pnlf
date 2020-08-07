@@ -22,7 +22,7 @@ from photutils import aperture_photometry      # measure flux in aperture
 
 from photutils import Background2D, MedianBackground, MMMBackground, SExtractorBackground
 
-from dust_extinction.parameter_averages import CCM89
+from dust_extinction.parameter_averages import CCM89, F99
 
 import scipy.optimize as optimization          # fit Gaussian to growth curve
 
@@ -184,7 +184,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
                     phot['flux'] = phot['aperture_sum'] - phot['bkg_global']
 
             # calculate the average of the velocity dispersion
-            aperture = CircularAperture(positions, r=2)
+            aperture = CircularAperture(positions, r=4)
             SIGMA = aperture_photometry(v_disp,aperture)
             phot['SIGMA'] = SIGMA['aperture_sum'] / aperture.area
 

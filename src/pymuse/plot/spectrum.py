@@ -89,7 +89,6 @@ def cutout_spectrum(position,img,data_cube,wcs,title=None,filename=None):
     ax2.yaxis.set_ticks_position('both')
     ax2.yaxis.set_label_position("right")
     
-    
     ax1.add_patch(mpl.patches.Rectangle((x,y),1,1,linewidth=0.3,edgecolor='k',facecolor='none'))
     plt.subplots_adjust(wspace=0.1)
     
@@ -112,7 +111,7 @@ def cutout_spectrum(position,img,data_cube,wcs,title=None,filename=None):
 
 
 
-def spectrum_and_rgb(position,galaxy,data_cube,wcs,aperture_size,title=None,filename=None):
+def spectrum_and_rgb(position,galaxy,data_cube,wcs,aperture_size,title=None,filename=None,xlim=[4750,7000]):
     '''Plot one spectra of a MUSE data cube with Image
     
     Parameters
@@ -150,10 +149,10 @@ def spectrum_and_rgb(position,galaxy,data_cube,wcs,aperture_size,title=None,file
 
     size = 40
     r = Cutout2D(galaxy.HA6562, (x,y), size,wcs=galaxy.wcs)
-    g = Cutout2D(galaxy.OIII5006_DAP, (x,y), size,wcs=galaxy.wcs)
+    g = Cutout2D(galaxy.OIII5006, (x,y), size,wcs=galaxy.wcs)
     b = Cutout2D(galaxy.SII6716, (x,y), size,wcs=galaxy.wcs)
 
-    rgb = create_RGB(r.data,g.data,b.data,weights=[0.8,1,0.9],percentile=[97,97,97])
+    rgb = create_RGB(r.data,g.data,b.data,weights=[0.9,0.9,0.9],percentile=[97,97,97])
     ax1.imshow(rgb)
 
     radius = aperture_size * galaxy.PSF[int(y),int(x)] / 2
@@ -191,7 +190,7 @@ def spectrum_and_rgb(position,galaxy,data_cube,wcs,aperture_size,title=None,file
     
     ax2.set(title='Spectrum',
             yscale='linear',
-            xlim=[4750,7000],
+            xlim=xlim,
             #ylim=[1e2,7e2],
             xlabel=r'$\lambda$\,/\,\AA',
             ylabel=r'erg\,/\,s\,/\,\AA')

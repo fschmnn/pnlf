@@ -112,7 +112,7 @@ def detect_unresolved_sources(
         # we create a mask for the current pointing (must be inverted)
         psf_mask = (PSF == fwhm) #& (~np.isnan(PSF))
         #source_mask = make_source_mask(data, nsigma=2, npixels=5, dilate_size=int(3*fwhm)) | ~psf_mask
-        mean, median, std = sigma_clipped_stats(data, sigma=3.0,maxiters=None,mask=~psf_mask)
+        mean, median, std = sigma_clipped_stats(data, sigma=3.0,maxiters=5,mask=~psf_mask)
         
         # initialize and run StarFinder (DAOPHOT or IRAF)
         finder = StarFinder(fwhm      = fwhm * PSF_correction * oversize, 
@@ -331,7 +331,7 @@ def completeness_limit(
             # we create a mask for the current pointing (must be inverted)
             psf_mask = (PSF == fwhm) #& (~np.isnan(PSF))
             source_mask = make_source_mask(data, nsigma=2, npixels=5, dilate_size=int(3*fwhm)) | ~psf_mask
-            mean, median, std = sigma_clipped_stats(data, sigma=3.0,maxiters=None,mask=source_mask)
+            mean, median, std = sigma_clipped_stats(data, sigma=3.0,maxiters=5,mask=source_mask)
             
             # initialize and run StarFinder (DAOPHOT or IRAF)
             finder = StarFinder(fwhm      = fwhm * PSF_correction * oversize, 
@@ -391,7 +391,7 @@ def completeness_limit(
     ax.set(xlabel='m$_{[\mathrm{OIII}]}$',
            ylabel='detected sources in %',
            ylim=[0,100])
-    plt.savefig(basedir / 'reports' / f'{self.name}_completness.pdf')
+    plt.savefig(basedir / 'reports' / self.name / f'{self.name}_completness.pdf')
     plt.show()
     #----------------------------------------------------------------
 

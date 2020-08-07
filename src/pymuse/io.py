@@ -36,7 +36,7 @@ class ReadLineMaps:
     pointings and thus impacts the resulting point spread function (PSF).
     '''
     
-    def __init__(self,folder,name,extensions=['OIII5006','HA6562','NII6583','SII6716'],**kwargs):
+    def __init__(self,folder,name,extensions=['OIII5006','HA6562','NII6583','SII6716','SII6730'],**kwargs):
         '''
         Parameters
         ----------
@@ -93,6 +93,7 @@ class ReadLineMaps:
                 setattr(self,line,hdul[f'{line}_FLUX'].data)
                 setattr(self,f'{line}_err',hdul[f'{line}_FLUX_ERR'].data)                
                 setattr(self,f'{line}_SIGMA',np.sqrt(hdul[f'{line}_SIGMA'].data**2 - hdul[f'{line}_SIGMA_CORR'].data**2))
+                setattr(self,f'{line}_SIGMA_ERR',hdul[f'{line}_SIGMA_ERR'])
 
                 # append to list of available lines
                 self.lines.append(line)
@@ -245,21 +246,46 @@ def write_LaTeX(table,galaxy,filename):
     table['SkyCoord'] = SkyCoord.from_pixel(table['x'],table['y'],galaxy.wcs)
     table['RA'],table['DEC'] = zip(*[x.split(' ') for x in table['SkyCoord'].to_string(style='hmsdms',precision=2)])
 
-    if galaxy.name =='NGC628':
+    if galaxy.name =='NGC0628':
+        print('comparing to existing studies')
         from .load_references import NGC628
         cat = {'Kreckel PN':'a','Herrmann PN':'b','Kreckel SNR':'c'}
-
         ID, angle, Quantity  = match_coordinates_sky(NGC628['SkyCoord'],table['SkyCoord'])
-
         table['match'] = np.empty(len(table),dtype='U12')
         for i,a,row in zip(ID,angle,NGC628):
             if a.__lt__(Angle('0.8"')):
                 table['match'][i] += cat[row['source']]
-                
                 if False:
                     table['match'][i] += ' ' + row['ID']
 
-    for typ in ['PN','SNR','HII']:
+    if galaxy.name =='NGC3351':
+        print('comparing to existing studies')
+        from .load_references import pn_NGC3351_ciardullo
+        ID, angle, Quantity  = match_coordinates_sky(pn_NGC3351_ciardullo['SkyCoord'],table['SkyCoord'])
+        table['match'] = np.empty(len(table),dtype='U12')
+        for i,a,row in zip(ID,angle,pn_NGC3351_ciardullo):
+            if a.__lt__(Angle('0.8"')):
+                table['match'][i] += 'a'
+
+    if galaxy.name =='NGC3627':
+        print('comparing to existing studies')
+        from .load_references import pn_NGC3627_ciardullo
+        ID, angle, Quantity  = match_coordinates_sky(pn_NGC3627_ciardullo['SkyCoord'],table['SkyCoord'])
+        table['match'] = np.empty(len(table),dtype='U12')
+        for i,a,row in zip(ID,angle,pn_NGC3627_ciardullo):
+            if a.__lt__(Angle('0.8"')):
+                table['match'][i] += 'a'
+
+    if galaxy.name =='NGC5068':
+        print('comparing to existing studies')
+        from .load_references import pn_NGC5068_herrmann
+        ID, angle, Quantity  = match_coordinates_sky(pn_NGC5068_herrmann['SkyCoord'],table['SkyCoord'])
+        table['match'] = np.empty(len(table),dtype='U12')
+        for i,a,row in zip(ID,angle,pn_NGC5068_herrmann):
+            if a.__lt__(Angle('0.8"')):
+                table['match'][i] += 'a'
+
+    for typ in ['PN','SNR']:
 
         if typ == 'PN':
             n = 'Planetary Nebula'
@@ -280,7 +306,7 @@ def write_LaTeX(table,galaxy,filename):
                     }
 
         tbl_out = table[table['type']==typ]
-
+        tbl_out['Galaxy'] = galaxy.name
         tbl_out.sort('mOIII')
 
         tbl_out['OIII/Ha']   = np.empty(len(tbl_out),dtype='U8')
@@ -290,15 +316,16 @@ def write_LaTeX(table,galaxy,filename):
         tbl_out['d(Ha/NII)'] = np.empty(len(tbl_out),dtype='U8')
         tbl_out['d(Ha/SII)'] = np.empty(len(tbl_out),dtype='U8')
 
-        # compare to existing studies
-
+        # add marker for existing study or excluded object
         names = []
         for i,row in enumerate(tbl_out):
             name = str(i+1)
-            if galaxy.name == 'NGC628':
+            if galaxy.name == 'NGC0628' or galaxy.name=='NGC3351' or galaxy.name=='NGC3627' or galaxy.name=='NGC5068':
                 name += row['match']
             if row['exclude']:
                 name += '*'
+            if row['SNRorPN']:
+                name += '+'
             names.append(name)        
         tbl_out['name'] = names
 
@@ -324,20 +351,20 @@ def write_LaTeX(table,galaxy,filename):
                 row['Ha/NII'] += f"{row['HA6562'] / row['NII6583']:.2f}"
                 row['d(Ha/NII)'] = f"{row['HA6562'] / row['NII6583'] * np.sqrt( (row['NII6583_err'] / row['NII6583'])**2 + (row['HA6562_err'] / row['HA6562'])**2):.2f}"
 
-            if not row['HA6562_detection'] and not row['SII6716_detection']:
+            if not row['HA6562_detection'] and not row['SII_detection']:
                 row['Ha/SII'] = '...'
                 row['d(Ha/SII)'] = '...'
             elif not row['HA6562_detection']:
                 row['Ha/SII'] += '<'
-                row['Ha/SII'] += f"{row['HA6562'] / row['SII6716']:.2f}"
-                row['d(Ha/SII)'] = f"{row['HA6562'] / row['SII6716'] * np.sqrt( (row['HA6562_err'] / row['HA6562'])**2 + (row['SII6716_err'] / row['SII6716'])**2):.2f}"
-            elif not row['SII6716_detection']:
+                row['Ha/SII'] += f"{row['HA6562'] / row['SII']:.2f}"
+                row['d(Ha/SII)'] = f"{row['HA6562'] / row['SII'] * np.sqrt( (row['HA6562_err'] / row['HA6562'])**2 + (row['SII_err'] / row['SII'])**2):.2f}"
+            elif not row['SII_detection']:
                 row['Ha/SII'] += '>'
-                row['Ha/SII'] += f"{row['HA6562'] / row['SII6716']:.2f}"
-                row['d(Ha/SII)'] = f"{row['HA6562'] / row['SII6716'] * np.sqrt( (row['HA6562_err'] / row['HA6562'])**2 + (row['SII6716_err'] / row['SII6716'])**2):.2f}"
+                row['Ha/SII'] += f"{row['HA6562'] / row['SII']:.2f}"
+                row['d(Ha/SII)'] = f"{row['HA6562'] / row['SII'] * np.sqrt( (row['HA6562_err'] / row['HA6562'])**2 + (row['SII_err'] / row['SII'])**2):.2f}"
             else:
-                row['Ha/SII'] += f"{row['HA6562'] / row['SII6716']:.2f}"
-                row['d(Ha/SII)'] = f"{row['HA6562'] / row['SII6716'] * np.sqrt( (row['HA6562_err'] / row['HA6562'])**2 + (row['SII6716_err'] / row['SII6716'])**2):.2f}"
+                row['Ha/SII'] += f"{row['HA6562'] / row['SII']:.2f}"
+                row['d(Ha/SII)'] = f"{row['HA6562'] / row['SII'] * np.sqrt( (row['HA6562_err'] / row['HA6562'])**2 + (row['SII_err'] / row['SII'])**2):.2f}"
 
 
         tbl_out['mOIII'].info.format = '%.2f' 
@@ -345,7 +372,7 @@ def write_LaTeX(table,galaxy,filename):
         tbl_out['v_SIGMA'].info.format = '%.2f' 
 
         tbl_out.rename_columns(['name','RA','DEC','v_SIGMA'],['ID','R.A.','Dec.','sigmaV'])
-        tbl_out = tbl_out[['ID','R.A.','Dec.','mOIII','dmOIII','OIII/Ha','d(OIII/Ha)',
+        tbl_out = tbl_out[['Galaxy','ID','R.A.','Dec.','mOIII','dmOIII','OIII/Ha','d(OIII/Ha)',
                            'Ha/NII','d(Ha/NII)','Ha/SII','d(Ha/SII)','sigmaV']]
 
         with open((filename / f'{galaxy.name}_{typ}_candidates').with_suffix('.txt'),'w',newline='\n') as f:

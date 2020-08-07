@@ -60,9 +60,9 @@ def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
     apertures = []
     if isinstance(positions,tuple) or isinstance(positions,list):
         for position in positions:
-            apertures.append(CircularAperture(position, r=5))
+            apertures.append(CircularAperture(position, r=8))
     else:
-        apertures.append(CircularAperture(positions, r=5))
+        apertures.append(CircularAperture(positions, r=8))
 
     fig = figure(figsize=(6.974,6.974/2))
     ax = fig.add_subplot(111, projection=wcs)
@@ -80,7 +80,7 @@ def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
 
     colors = ['tab:red','tab:orange','tab:green']
     for i,aperture in enumerate(apertures):
-        aperture.plot(color=colors[i],lw=.2, alpha=1)
+        aperture.plot(color=colors[i],lw=.8, alpha=1)
 
     ax.set_xlabel('RA')
     ax.set_ylabel('Dec')

@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 from ..constants import tab10, single_column, two_column
 
-def _plot_pnlf(data,mu,completeness,binsize=0.4,mlow=None,mhigh=None,Mmax=-4.47,color='tab:red',alpha=1,ax=None):
+def _plot_pnlf(data,mu,completeness,binsize=0.4,mlow=None,mhigh=None,Mmax=-4.47,color=tab10[0],alpha=1,ax=None):
     '''Plot PNLF
 
     this function plots a minimalistic PNLF (without labels etc.)
@@ -73,7 +73,7 @@ def _plot_pnlf(data,mu,completeness,binsize=0.4,mlow=None,mhigh=None,Mmax=-4.47,
     return ax
 
 
-def _plot_cum_pnlf(data,mu,completeness=None,binsize=None,mlow=None,mhigh=None,Mmax=-4.47,color='tab:red',alpha=1,ax=None):
+def _plot_cum_pnlf(data,mu,completeness=None,binsize=None,mlow=None,mhigh=None,Mmax=-4.47,color=tab10[0],alpha=1,ax=None):
     '''Plot cumulative PNLF
 
     this function plots a minimalistic cumulative PNLF (without labels etc.)
@@ -169,7 +169,7 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,Mmax=-4.47,
         fig = ax1.get_figure()
 
     ax1 = _plot_pnlf(data,mu,completeness,binsize=binsize,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax1)
-    ax2 = _plot_cum_pnlf(data,mu,completeness,binsize=0.1,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax2)
+    ax2 = _plot_cum_pnlf(data,mu,completeness,binsize=None,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax2)
 
     ax1.set_xlabel(r'$m_{[\mathrm{OIII}]}$ / mag')
     ax1.set_ylabel(r'$N$')
@@ -227,10 +227,10 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
         if t=='SNR':
            tbl = tbl[tbl['SNRorPN']] 
            print(f'SNR or PN: {len(tbl[tbl["mOIII"]<completeness])} objects')
-           ax1.errorbar(tbl['mOIII']-mu,tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']), marker='x',ms=2,mec=tab10[0],ls='none') 
+           ax1.errorbar(tbl['mOIII']-mu,tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']), marker='o',ms=2,mfc=tab10[0],mec=tab10[0],ls='none') 
    
     # objects that were rejeceted by eye
-    tbl = table[table['exclude']]
+    tbl = table[table['overluminous']]
     ax1.errorbar(tbl['mOIII']-mu,tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),marker='o',ms=3,ls='none',color='tab:green') 
 
     ax1.set(xlim=[-5,np.ceil(completeness-mu)],
@@ -253,20 +253,20 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     
     for t in ['HII','SNR','PN']:
         tbl = table[(table['type']==t)] #& (table['HA6562_detection'] | table['HA6562_detection'])]
-        ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']),
+        ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII']),np.log10(tbl['HA6562']/tbl['NII6583']),
                      **style[t],label=t)
 
         if t=='PN':
             # indicate for which PN we don't have a detection in HA6562
-            tbl = tbl[~tbl['SII6716_detection'] | ~tbl['HA6562_detection']]
-            ax2.errorbar(0.03+np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']),
+            tbl = tbl[~tbl['SII_detection'] | ~tbl['HA6562_detection']]
+            ax2.errorbar(0.03+np.log10(tbl['HA6562']/tbl['SII']),np.log10(tbl['HA6562']/tbl['NII6583']),
                          marker=r'$\!\rightarrow$',ms=4,mec='black',ls='none') 
         if t=='SNR':
            tbl = tbl[tbl['SNRorPN']] 
-           ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']), marker='x',ms=2,mec=tab10[0],ls='none') 
+           ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII']),np.log10(tbl['HA6562']/tbl['NII6583']), marker='o',ms=2,mfc=tab10[0],mec=tab10[0],ls='none') 
 
-    tbl = table[table['exclude']]
-    ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII6716']),np.log10(tbl['HA6562']/tbl['NII6583']),marker='o',ms=3,ls='none',color='tab:green') 
+    tbl = table[table['overluminous']]
+    ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII']),np.log10(tbl['HA6562']/tbl['NII6583']),marker='o',ms=3,ls='none',color='tab:green') 
 
     ax2.legend()
 
@@ -292,14 +292,14 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     # right plot with velocity dispersion
     # ------------------------------------------------
 
-    bins = np.arange(0,200,10)
+    bins = np.arange(0,150,10)
     SN_cut = 9
 
     ax3.hist(table[(table['type']=='PN') & (table['v_SIGMA_S/N']>SN_cut)]['v_SIGMA'],bins=bins,alpha=1,label='PN',color='black')
-    ax3.hist(table[(table['type']=='SNR') & (table['v_SIGMA_S/N']>SN_cut)]['v_SIGMA'],bins=bins,alpha=0.8,label='SNR',color=tab10[0])
+    ax3.hist(table[(table['type']=='SNR') & (table['v_SIGMA_S/N']>SN_cut)]['v_SIGMA'],bins=bins,alpha=0.7,label='SNR',color=tab10[0])
 
-    ax3.set_xlabel(r'$\sigma_V$ / km s$^{-1}$')
-    ax3.axvline(100,c='black',lw=0.6) 
+    ax3.set(xlabel=r'$\sigma_V$ / km s$^{-1}$',ylabel='counts')
+    #ax3.axvline(100,c='black',lw=0.6) 
     ax3.legend()
 
     plt.subplots_adjust(wspace=0.35)
@@ -330,6 +330,7 @@ importance = [
 'Cepheids',
 'SNIa',
 'SNII',
+'NAM',
 'TF',  
 'TE',
 'BS',
@@ -342,13 +343,16 @@ importance = [
 ]
 importance = importance[::-1]
 
+##f28e2b orange
+##edc949 gelb
 colors = {
 'BS':'#9c755f',
 'Cepheids':'#59a14e',
 'GSGD':'#76b7b2',
 'DS':'#76b7b2',
 'IRAS':'#ff9da7',
-'PNLF':'#edc949',
+'NAM' : '#edc949',
+'PNLF':'#e15759',
 'RD':'#bab0ac',
 'SNII':'#4e79a7',
 'SNIa':'#76b7b2',
@@ -479,15 +483,15 @@ def compare_distances(name,distance,plus,minus,filename=None):
     distances['sort_order'] = [importance.index(row['Method']) for row in distances]
     distances.sort(['sort_order','year'])
     distances['y'] = np.arange(1,len(distances)+1)
-    if len(distances)>7:
+    if len(distances)>9:
         fig = plt.figure(figsize=(single_column,0.15*len(distances)),tight_layout=True)
     else:
-        fig = plt.figure(figsize=(single_column,0.22*len(distances)),tight_layout=True)
+        fig = plt.figure(figsize=(single_column,(0.28-0.012*len(distances))*len(distances)),tight_layout=True)
     ax = fig.add_subplot(1,1,1)
 
-    ax.fill_betweenx(np.arange(0,len(distances)+2), distance-minus, distance+plus,facecolor=tab10[0], alpha=0.4)
-    ax.fill_betweenx(np.arange(0,len(distances)+2), distance-3*minus, distance+3*plus,facecolor=tab10[0], alpha=0.1)
-    ax.axvline(distance,color=tab10[0])
+    ax.fill_betweenx(np.arange(0,len(distances)+2), distance-minus, distance+plus,facecolor='black', alpha=0.5)
+    ax.fill_betweenx(np.arange(0,len(distances)+2), distance-3*minus, distance+3*plus,facecolor='black', alpha=0.2)
+    ax.axvline(distance,color='black',lw=0.8)
 
     method_ticks = []
     method_labels = np.unique(distances['Method'])
@@ -522,7 +526,7 @@ def compare_distances(name,distance,plus,minus,filename=None):
     ax3.set_xticklabels([f'{x:.2f}' for x in xticks_mpc],ha="left")
     ax3.set(xlim=[xmin,xmax],ylabel='$D$ / Mpc')
     '''
-
+    
     if filename:
         plt.savefig(filename.with_suffix('.pdf'),bbox_inches='tight')
         plt.savefig(filename.with_suffix('.pgf'))
@@ -534,7 +538,8 @@ def compare_distances(name,distance,plus,minus,filename=None):
     existing_keys = {
        '2017ApJ...834..174K' : 'Kreckel+2017',
        '2008ApJ...683..630H' : 'Herrmann+2008',
-       '2002ApJ...577...31C' : 'Ciardullo+2002'
+       '2002ApJ...577...31C' : 'Ciardullo+2002',
+       '2020+Anand' : 'Anand+2020'
     }
 
     with open(basedir / 'reports' / 'citealias.tex','r',encoding='utf8') as f:

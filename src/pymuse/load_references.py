@@ -129,3 +129,7 @@ pn_NGC3627_ciardullo.rename_column('OIII','mOIII')
 pn_NGC3627_ciardullo.meta['reference'] = 'Ciardullo+2002'
 pn_NGC3627_ciardullo.meta['bibcode'] = '2002ApJ...577...31C'
 
+# Sonbas+2010
+
+snr_NGC0628_sonbas = ascii.read(basedir / 'data' / 'external' / 'Sonbas_snr_NGC0628.txt',format='csv',delimiter=' ',data_start=1)
+snr_NGC0628_sonbas['SkyCoord'] = SkyCoord(snr_NGC0628_sonbas['RA'],snr_NGC0628_sonbas['Dec'])

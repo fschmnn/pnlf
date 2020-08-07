@@ -74,8 +74,18 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     # we start with the assumption that all sources are PN and remove contaminants later
     table['type'][:] = 'PN'
 
+    # calculate the absolute magnitude based on a first estimate of the distance modulus 
+    table['MOIII'] = table['mOIII'] - distance_modulus
+    if True:
+        table['SII'] = table['SII6716']+table['SII6730']
+        table['SII_err'] = np.sqrt(table['SII6716_err']**2+table['SII6730_err']**2)
+    else:
+        table['SII'] = table['SII6716']
+        table['SII_err'] = table['SII6716_err']
+        
+
     # we set negative fluxes to the error (0 would cause because we work with ratios)
-    for col in ['OIII5006','HA6562','NII6583','SII6716']:
+    for col in ['OIII5006','HA6562','NII6583','SII']:
         # median of error maps is a factor of 3 smaller than std of maps
         detection = (table[col]>0) & (table[col]>9*table[f'{col}_err'])
         logger.info(f'{np.sum(~detection)} not detected in {col}')
@@ -83,23 +93,19 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
         #table[col][np.where(~detection)] = table[f'{col}_err'][np.where(~detection)] 
         table[f'{col}_detection'] = detection
 
-    # calculate the absolute magnitude based on a first estimate of the distance modulus 
-    table['MOIII'] = table['mOIII'] - distance_modulus
-
     # calculate velocity dispersion (use line with best signal to noise)
     table['OIII5006_S/N'] =  table['OIII5006']/table['OIII5006_err']
     table['HA6562_S/N']   =  table['HA6562']/table['HA6562_err']
-    table['SII6716_S/N']  =  table['SII6716']/table['SII6716_err'] 
+    table['SII_S/N']  =  table['SII']/table['SII_err'] 
 
     # use the velocity dispersion with the highest singal to noise
-    table['v_SIGMA']     = table['OIII5006_SIGMA']
-    table['v_SIGMA_S/N'] = table['OIII5006_S/N'] 
+    table['v_SIGMA']     = table['HA6562_SIGMA']
+    table['v_SIGMA_S/N'] = table['HA6562_S/N']
 
-    table['v_SIGMA'][np.where(table['HA6562_S/N']>table['v_SIGMA_S/N'] )] = table['HA6562_SIGMA'][np.where(table['HA6562_S/N']>table['v_SIGMA_S/N'] )]
-    table['v_SIGMA_S/N'][np.where(table['HA6562_S/N']>table['v_SIGMA_S/N'] )] = table['HA6562_S/N'][np.where(table['HA6562_S/N']>table['v_SIGMA_S/N'] )] 
-    
-    table['v_SIGMA'][np.where(table['SII6716_S/N']>table['v_SIGMA_S/N'])] = table['SII6716_SIGMA'][np.where(table['SII6716_S/N']>table['v_SIGMA_S/N'] )]
-    table['v_SIGMA_S/N'][np.where(table['SII6716_S/N']>table['v_SIGMA_S/N'] )] = table['SII6716_S/N'][np.where(table['SII6716_S/N']>table['v_SIGMA_S/N'] )] 
+    #table['v_SIGMA'][np.where(table['HA6562_SIGMA']/table['HA6562_SIGMA_ERR']>table['v_SIGMA_S/N'] )] = table['HA6562_SIGMA'][np.where(table['HA6562_SIGMA']/table['HA6562_SIGMA_ERR']>table['v_SIGMA_S/N'] )]
+    #table['v_SIGMA_S/N'][np.where(table['HA6562_SIGMA']/table['HA6562_SIGMA_ERR']>table['v_SIGMA_S/N'] )] = table['HA6562_S/N'][np.where(table['HA6562_SIGMA']/table['HA6562_SIGMA_ERR']>table['v_SIGMA_S/N'] )] 
+    #table['v_SIGMA'][np.where(table['SII6716_SIGMA']/table['SII6716_SIGMA_ERR']>table['v_SIGMA_S/N'])] = table['SII6716_SIGMA'][np.where(table['SII6716_SIGMA']/table['SII6716_SIGMA_ERR']>table['v_SIGMA_S/N'] )]
+    #table['v_SIGMA_S/N'][table['SII6716_SIGMA']/table['SII6716_SIGMA_ERR']>table['v_SIGMA_S/N'] )] = table['SII_S/N'][np.where(table['SII6716_SIGMA']/table['SII6716_SIGMA_ERR']>table['v_SIGMA_S/N'] )] 
     #logger.info('v_sigma: median={:.2f}, median={:.2f}, sig={:.2f}'.format(*sigma_clipped_stats(table['v_SIGMA'][~np.isnan(table['v_SIGMA'])])))
     
     # define ratio of OIII to Halpha and NII for the first criteria (with error). If NII is not detected we assume NII=0.5Halpha
@@ -113,10 +119,10 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     #criteria['HII'] = (10**(table['R']+table['dR']) < 1.6)
     criteria['HII'] = (table['R'] + table['dR'] < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'] | table['NII6583_detection'])
     
-    criteria['SNR'] = ((table['HA6562']) / (table['SII6716']) < 2.5)  & (table['SII6716_detection']) 
+    criteria['SNR'] = ((table['HA6562']) /table['SII'] < 2.5) & (table['SII_detection']) 
     # only apply this criteria if signal to noise is < 3
     # we underestimate the error and hence S/N is too big. This justifies using 3 instead of 1
-    #criteria['SNR'] |= ((table['v_SIGMA']>100) & (table['v_SIGMA_S/N']>9)) & (table['HA6562_S/N']<3)
+    criteria['SNR'] |= ((table['v_SIGMA']>100) & (table['v_SIGMA_S/N']>3)) # & (table['HA6562_S/N']<3)
 
     # objects that would be classified as PN by narrowband observations
     table['SNRorPN'] = criteria['SNR'] & ~criteria['HII']
@@ -390,9 +396,48 @@ def PNLF(bins,mu,mhigh,Mmax=-4.47):
 
     return out
 
+def sample_pnlf(size,mu,cl):
+    
+    Nbins = 1000
+    x =np.linspace(mu-4.47,cl,Nbins)
+    cdf = np.cumsum(pnlf(x,mu,cl))*(cl-mu+4.47)/Nbins
+    u = np.random.uniform(size=size)
+    
+    return np.interp(u,cdf,x)
+
 
 def prior(mu):
     mu0 = 29.91
     std = 0.13
     
     return 1 / (std*np.sqrt(2*np.pi)) * np.exp(-(mu-mu0)**2 / (2*std**2))
+
+
+def N25(mu,completeness,data,deltaM):
+    '''calculate the number of PN within deltaM
+    
+    the cutoff of the luminosity function is at mu-4.47.
+    
+    Step1: number of PN in data between cutoff and completeness
+    Step2: calculate same number from theoretical function
+    Step3: calculate theoreticla number betwenn cutoff and deltaM
+    Step4: Scale number from Step1 with results from Step 2 and 3
+    
+    Parameters
+    ----------
+    mu : float
+        distance modulus 
+    completeness : float
+        completeness limit (upper limit for PNLF). Used for normalization
+    data : ndarray
+        array of magnitudes
+    deltaM : float
+        Interval above the cutoff
+    '''
+    
+    cutoff = mu - 4.47
+    
+    N_total  = len(data[data<completeness])
+    p_deltaM = (F(cutoff+deltaM,mu) - F(cutoff,mu)) / (F(completeness,mu) - F(cutoff,mu))
+    
+    return N_total * p_deltaM

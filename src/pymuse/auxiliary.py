@@ -250,15 +250,24 @@ def filter_table(table,**kwargs):
     return table
     
 
-def uncertainties(mu,mu_plus,mu_minus):
-    d       = Distance(distmod=mu)
-    #d_plus  = Distance(distmod=mu+mu_plus) - Distance(distmod=mu)
-    #d_minus = Distance(distmod=mu)-Distance(distmod=mu-mu_minus)
-    
-    d_plus = 0.2*np.log(10)*d*mu_plus
-    d_minus = 0.2*np.log(10)*d*mu_minus
+def mu_to_parsec(mu,error=None):
 
-    return d,d_plus,d_minus
+    d = Distance(distmod=mu)
+    error = np.atleast_1d(error)
+
+    if len(error)>=1:
+        return d, 0.2*np.log(10)*d*error
+    else:
+        return d
+
+def parsec_to_mu(d,error=None):
+
+    error = np.atleast_1d(error)
+    mu = Distance(d).distmod
+    if len(error)>=1:
+        return  mu, 5/(np.log(10)) * error/d
+    else:
+        return mu
 
 
 def diameter(D,delta):
