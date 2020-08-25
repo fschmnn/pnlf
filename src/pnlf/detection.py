@@ -98,7 +98,7 @@ def detect_unresolved_sources(
         wavelength =int(re.findall(r'\d{4}', line)[0])
         PSF_correction = correct_PSF(wavelength)
     except:
-        PSF_correction = 1
+        PSF_correction = 0
 
     # loop over all pointings with different PSFs
     pointings = np.unique(PSF[~np.isnan(PSF)])
@@ -115,7 +115,7 @@ def detect_unresolved_sources(
         mean, median, std = sigma_clipped_stats(data, sigma=3.0,maxiters=5,mask=~psf_mask)
         
         # initialize and run StarFinder (DAOPHOT or IRAF)
-        finder = StarFinder(fwhm      = fwhm * PSF_correction * oversize, 
+        finder = StarFinder(fwhm      = (fwhm - PSF_correction) * oversize, 
                             threshold = threshold*std,
                             **daoargs)
         peaks_part = finder(data-median, mask=(~psf_mask | exclude_region))
@@ -258,7 +258,7 @@ def completeness_limit(
         wavelength = int(re.findall(r'\d{4}', line)[0])
         PSF_correction = correct_PSF(wavelength)
     except:
-        PSF_correction = 1
+        PSF_correction = 0
 
     j = 0
     while j < iterations:
@@ -300,7 +300,7 @@ def completeness_limit(
         
         mock_sources['x_mean'], mock_sources['y_mean'] = x_mean, y_mean
         # get PSF size at the generated position
-        mock_sources['x_stddev'] = PSF_correction * PSF_arr * gaussian_fwhm_to_sigma * oversize
+        mock_sources['x_stddev'] = (PSF_arr-PSF_correction) * gaussian_fwhm_to_sigma * oversize
         mock_sources['y_stddev'] = mock_sources['x_stddev']
         mock_sources['amplitude'] = mock_sources['flux'] / (mock_sources['x_stddev']*np.sqrt(2*np.pi))
 
@@ -334,7 +334,7 @@ def completeness_limit(
             mean, median, std = sigma_clipped_stats(data, sigma=3.0,maxiters=5,mask=source_mask)
             
             # initialize and run StarFinder (DAOPHOT or IRAF)
-            finder = StarFinder(fwhm      = fwhm * PSF_correction * oversize, 
+            finder = StarFinder(fwhm      = (fwhm - PSF_correction) * oversize, 
                                 threshold = threshold*std,
                                 **daoargs)
             peaks_part = finder(mock_img, mask=(~psf_mask | exclude_region))

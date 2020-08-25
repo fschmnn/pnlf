@@ -136,11 +136,11 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
             source_part = peak_tbl[peak_tbl['fwhm']==fwhm]
             positions = np.transpose((source_part['x'], source_part['y']))
 
-            gamma = fwhm * PSF_correction / (2*np.sqrt(2**(1/alpha)-1))
+            gamma = (fwhm - PSF_correction) / (2*np.sqrt(2**(1/alpha)-1))
 
             if aperture_size > 3:
                 logger.warning('aperture > 3 FWHM')
-            r = aperture_size * fwhm / 2 * PSF_correction 
+            r = aperture_size * (fwhm-PSF_correction) / 2 
             aperture = CircularAperture(positions, r=r)
 
             # measure the flux for each source
@@ -156,7 +156,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
             # the local background subtraction estimates the background for 
             # each source individually 
-            r_in  = 4 * fwhm / 2  * PSF_correction
+            r_in  = 4 * (fwhm-PSF_correction) / 2 
             r_out = np.sqrt(3*r**2+r_in**2)
             annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
             annulus_masks = annulus_aperture.to_mask(method='center')

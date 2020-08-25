@@ -1,6 +1,8 @@
-# pymuse
+# pnlf
 
-A Python package to manipulate, analyze and plot MUSE data. The name is preliminary and will be changed later to avoid confusion with the existing [PyMUSE](https://github.com/ismaelpessa/PyMUSE) package.
+*last updated 2020.08.25*
+
+A Python package to manipulate, analyze and plot MUSE data for Planetary Nebula studies
 
 
 
@@ -16,10 +18,10 @@ A more detailed description of the functionality is either provided by the docst
 
 In principle one could clone this repository from [github](https://github.com/fschmnn/pymuse) and use it right away. However to ensure that everything works as intended, a few additional steps are recommended.
 
-1. **Set up conda environment**: It is highly advised to run data science projects in a dedicated environment. This has the advantage that any third party packages have the correct version installed which helps to make the results reproducible. We use *conda* to do this. The required packages are listed in `environment.yaml` and a new environment, called `pymuse` is created with
+1. **Set up conda environment**: It is highly advised to run data science projects in a dedicated environment. This has the advantage that any third party packages have the correct version installed which helps to make the results reproducible. We use *conda* to do this. The required packages are listed in `environment.yml` and a new environment, called `pymuse` is created with
 
    ```bash
-   conda env create -f .\environment.yaml
+   conda env create -f .\environment.yml
    ```
 
     Every time one opens a new shell, the environment must be activated with
@@ -31,7 +33,7 @@ In principle one could clone this repository from [github](https://github.com/fs
    New packages can either be installed by altering the installation file and running
 
    ```bash
-   conda env update -f environment.yaml --prune
+   conda env update -f environment.yml --prune
    ```
 
    or by typing
@@ -47,7 +49,7 @@ In principle one could clone this repository from [github](https://github.com/fs
    conda install -c conda-forge jupyter_nbextensions_configurator
    ```
 
-   
+   The extensions can then be activated in the `Nbextensions` tab of the jupyter explorer
 
 2. **Install the package**: with the dependencies installed, we still need to setup the actual package. To develop the package, simply type
 
@@ -93,7 +95,7 @@ The structure of this project was inspired by [this blog post](https://florianwi
 ├── setup.cfg               <- Declarative configuration of your project.
 ├── setup.py                <- Install for development or create a distribution.
 ├── src
-│   └── pymuse              <- Python package where the main functionality goes.
+│   └── pnlf                <- Python package where the main functionality goes.
 └── tests                   <- Unit tests which can be run with `py.test`.
 ```
 

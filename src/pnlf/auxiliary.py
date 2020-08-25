@@ -3,6 +3,7 @@ from scipy.special import hyp2f1
 import astropy
 import astropy.units as u        
 from astropy.coordinates import Distance
+from .constants import arcsec_to_pixel
 
 class Distance_old:
     def __init__(self,value,unit):
@@ -45,7 +46,8 @@ def search_table(table,string):
             mask[i]= True
     return  table[mask]
 
-correct_PSF = lambda lam: 1- 4.7e-5*(lam-6450)
+correct_PSF = lambda lam: arcsec_to_pixel*3e-5*(lam-6483.58)
+#correct_PSF = lambda lam: 1- 4.7e-5*(lam-6450)
 
 def fwhm_moffat(alpha,gamma):
     '''calculate the FWHM of a Moffat'''

@@ -13,7 +13,8 @@ from reproject import reproject_interp
 from astropy.visualization import simple_norm
 import matplotlib.pyplot as plt
 
-from .constants import two_column
+from .constants import two_column, arcsec_to_pixel
+
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,6 @@ class ReadLineMaps:
         '''
 
         # PSF is given in arcsec but we need it in pixel
-        _arcsec_to_pixel = 5
         
         self.name     = name
         self.filename = folder / 'MUSEDAP' / f'{self.name}_MAPS.fits'
@@ -148,7 +148,7 @@ class ReadLineMaps:
             logger.warning('creating 1" seeing map')
             self.PSF = np.ones_like(self.OIII5006)
             self.PSF[np.isnan(self.OIII5006)] = np.nan
-        self.PSF *= _arcsec_to_pixel 
+        self.PSF *= arcsec_to_pixel 
         
         logger.info(f'file loaded with {len(self.lines)} extensions')
 

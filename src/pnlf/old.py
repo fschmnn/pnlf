@@ -378,9 +378,9 @@ def old_vs_new_linemaps():
         source_part = peak_tbl[peak_tbl['fwhm']==fwhm]
         positions = np.transpose((source_part['x_big'], source_part['y_big']))
 
-        gamma = fwhm * PSF_correction / (2*np.sqrt(2**(1/alpha)-1))
+        gamma = (fwhm - PSF_correction) / (2*np.sqrt(2**(1/alpha)-1))
 
-        r = aperture_size * fwhm / 2 * PSF_correction 
+        r = aperture_size * (fwhm-PSF_correction) / 2
         aperture = CircularAperture(positions, r=r)
 
         # measure the flux for each source
@@ -390,7 +390,7 @@ def old_vs_new_linemaps():
                                 )
 
 
-        r_in  = 5 * fwhm / 2  * PSF_correction
+        r_in  = 5 * (fwhm-PSF_correction) / 2 
         r_out = 1.*np.sqrt(3*r**2+r_in**2)
         annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
         annulus_masks = annulus_aperture.to_mask(method='center')
