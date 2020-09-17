@@ -76,13 +76,8 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
 
     # calculate the absolute magnitude based on a first estimate of the distance modulus 
     table['MOIII'] = table['mOIII'] - distance_modulus
-    if True:
-        table['SII'] = table['SII6716']+table['SII6730']
-        table['SII_err'] = np.sqrt(table['SII6716_err']**2+table['SII6730_err']**2)
-    else:
-        table['SII'] = table['SII6716']
-        table['SII_err'] = table['SII6716_err']
-        
+    table['SII'] = table['SII6716']+table['SII6730']
+    table['SII_err'] = np.sqrt(table['SII6716_err']**2+table['SII6730_err']**2)
 
     # we set negative fluxes to the error (0 would cause because we work with ratios)
     for col in ['OIII5006','HA6562','NII6583','SII']:
@@ -115,10 +110,16 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
 
     # define criterias to exclude non PN objects
     criteria = {}
-    criteria[''] = (4 < (table['R']-table['dR'])) #& (table['HA6562_detection'])
-    #criteria['HII'] = (10**(table['R']+table['dR']) < 1.6)
-    criteria['HII'] = (table['R'] + table['dR'] < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'] | table['NII6583_detection'])
-    
+
+    if True:
+        #criteria['HII'] = (10**(table['R']) < 1.6)
+        criteria[''] = (4 < (table['R'])) #& (table['HA6562_detection'])
+        criteria['HII'] = (table['R'] < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'] | table['NII6583_detection'])
+    else:
+        criteria[''] = (4 < (table['R']- 3*table['dR'])) #& (table['HA6562_detection'])
+        criteria['HII'] = (table['R'] + 3*table['dR'] < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'] | table['NII6583_detection'])
+
+
     criteria['SNR'] = ((table['HA6562']) /table['SII'] < 2.5) & (table['SII_detection']) 
     # only apply this criteria if signal to noise is < 3
     # we underestimate the error and hence S/N is too big. This justifies using 3 instead of 1
@@ -151,7 +152,6 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
 
 def gaussian(x,mu,sig):
     return 1/np.sqrt(2*np.pi*sig**2) * np.exp(-(x-mu)**2/(2*sig**2))
-
 
 
 class MaximumLikelihood1D:

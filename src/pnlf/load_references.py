@@ -6,7 +6,7 @@ from astropy.io import ascii
 from astropy.coordinates import SkyCoord
 from astropy.table import vstack, MaskedColumn
 
-from pymuse.auxiliary import search_table, Distance
+from .auxiliary import search_table, Distance
 
 basedir = Path(__file__).parent.parent.parent
 

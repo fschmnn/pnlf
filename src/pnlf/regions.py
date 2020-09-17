@@ -1,8 +1,9 @@
 import logging
 
 import numpy as np 
-from matplotlib.pyplot import figure, savefig, show
+from matplotlib.pyplot import figure, savefig, show, cm
 
+from astropy.io import fits 
 from astropy.wcs import WCS
 from astropy.visualization import simple_norm
 
@@ -162,17 +163,17 @@ class Regions:
         if not isinstance(image,np.ndarray) and not regions and not contours:
             raise ValueError('you must select something to plot')
 
-        fig = plt.figure(figsize=(7,7))
+        fig = figure(figsize=(7,7))
         ax  = fig.add_subplot(111,projection=self.wcs)
         ax.coords[0].set_major_formatter('hh:mm:ss.s')
         ax.coords[1].set_major_formatter('dd:mm:ss')
 
         if isinstance(image,np.ndarray):
             norm = simple_norm(image,'linear',clip=False,percent=99)
-            ax.imshow(image,norm=norm,cmap=plt.cm.gray)  
+            ax.imshow(image,norm=norm,cmap=cm.gray_r)  
 
         if regions:
-            ax.imshow(self.mask,alpha=0.6,cmap=plt.cm.Reds)
+            ax.imshow(self.mask,alpha=0.6,cmap=cm.Reds)
 
         if contours:
             for cont in self.contours:
@@ -181,8 +182,8 @@ class Regions:
         ax.set(**kwargs)
 
         if filename:
-            plt.savefig(filename,dpi=600)
-        plt.show()        
+            savefig(filename,dpi=600)
+        show()        
 
     
     def __repr__(self):

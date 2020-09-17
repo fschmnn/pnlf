@@ -233,11 +233,11 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     tbl = table[table['overluminous']]
     ax1.errorbar(tbl['mOIII']-mu,tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),marker='o',ms=3,ls='none',color='tab:green') 
 
-    ax1.set(xlim=[-5,np.ceil(completeness-mu)],
+    ax1.set(xlim=[-5,np.ceil(completeness-mu)-0.7],
            ylim=[0.03,200],
            yscale='log',
-           xlabel=r'$M_{\mathrm{[OIII]}}$',
-           ylabel=r'[OIII] / $(\mathrm{H}\alpha + \mathrm{[NII]})$')
+           xlabel=r'$M_{\mathrm{[O\,\textsc{iii}]}}$',
+           ylabel=r'$I_{[\mathrm{O}\,\textsc{iii}]} \; /\;(I_{\mathrm{H}\,\alpha} + I_{\mathrm{[N\,\textsc{ii}]}})$')
     
     ax1.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.16g}'.format(y)))
 
@@ -245,7 +245,7 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     xlim1,xlim2 = ax1.get_xlim()
     ax1t.set_xticks(np.arange(np.ceil(xlim1+mu),np.floor(xlim2+mu)+1),minor=False)
     ax1t.set(xlim   = [xlim1+mu,xlim2+mu],
-            xlabel = r'$m_{\mathrm{[OIII]}}$')
+            xlabel = r'$m_{[\mathrm{O}\,\textsc{iii}]}$')
 
     # ------------------------------------------------
     # middle plot Ha/[NII] over Ha/[SII]
@@ -281,8 +281,8 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     ax2.set(xlim=[-0.5,1.5],
            ylim=[-0.2,1],
            #yscale='log',
-           xlabel=r'$\log (\mathrm{H}\alpha$ / [SII])',
-           ylabel=r'$\log (\mathrm{H}\alpha$ / [NII])')    
+           xlabel=r'$\log_{10} (I_{\mathrm{H}\,\alpha} \; /\; I_{[\mathrm{S}\,\textsc{ii}]})$',
+           ylabel=r'$\log_{10} (I_{\mathrm{H}\,\alpha} \; /\; I_{[\mathrm{N}\,\textsc{ii}]})$')    
     ax2.xaxis.set_major_locator(mpl.ticker.MultipleLocator(0.5))
     ax2.yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.5))
     ax2.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.1))
@@ -292,7 +292,7 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     # right plot with velocity dispersion
     # ------------------------------------------------
 
-    bins = np.arange(0,150,10)
+    bins = np.arange(0,120,10)
     SN_cut = 9
 
     ax3.hist(table[(table['type']=='PN') & (table['v_SIGMA_S/N']>SN_cut)]['v_SIGMA'],bins=bins,alpha=1,label='PN',color='black')

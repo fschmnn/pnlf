@@ -230,8 +230,116 @@ class ReadMosaicFiles:
             #data.writeto(f'{line}.fits',overwrite=True)
 
 
+def write_table(table,name,filename):
+    '''write the table to a file
 
-def write_LaTeX(table,galaxy,filename):
+    this will create a `.tex` file and a machine readable file
+
+    to read this file use
+    f = basedir / 'data' / 'catalogues' / f'{galaxy.name}_{typ}_candidates.txt'
+    ascii.read(f,format='fixed_width_two_line',position_char='=')
+    '''
+
+    threshold = '0.7"'
+
+    table['RA'],table['DEC'] = zip(*[x.split(' ') for x in table['SkyCoord'].to_string(style='hmsdms',precision=2)])
+    table['Galaxy'] = name
+
+    if name =='NGC0628':
+        logging.info('comparing to existing studies')
+        from .load_references import NGC628
+        cat = {'Kreckel PN':'K17;','Herrmann PN':'H08;','Kreckel SNR':'K17s;'}
+        ID, angle, Quantity  = match_coordinates_sky(NGC628['SkyCoord'],table['SkyCoord'])
+        table['match'] = np.empty(len(table),dtype='U12')
+        for i,a,row in zip(ID,angle,NGC628):
+            if a.__lt__(Angle('0.8"')):
+                table['match'][i] += cat[row['source']]
+
+    if name =='NGC3351':
+        logging.info('comparing to existing studies')
+        from .load_references import pn_NGC3351_ciardullo
+        ID, angle, Quantity  = match_coordinates_sky(pn_NGC3351_ciardullo['SkyCoord'],table['SkyCoord'])
+        table['match'] = np.empty(len(table),dtype='U12')
+        for i,a,row in zip(ID,angle,pn_NGC3351_ciardullo):
+            if a.__lt__(Angle('0.8"')):
+                table['match'][i] += 'C02;'
+
+    if name =='NGC3627':
+        logging.info('comparing to existing studies')
+        from .load_references import pn_NGC3627_ciardullo
+        ID, angle, Quantity  = match_coordinates_sky(pn_NGC3627_ciardullo['SkyCoord'],table['SkyCoord'])
+        table['match'] = np.empty(len(table),dtype='U12')
+        for i,a,row in zip(ID,angle,pn_NGC3627_ciardullo):
+            if a.__lt__(Angle('0.8"')):
+                table['match'][i] += 'C02;'
+
+    if name =='NGC5068':
+        logging.info('comparing to existing studies')
+        from .load_references import pn_NGC5068_herrmann
+        ID, angle, Quantity  = match_coordinates_sky(pn_NGC5068_herrmann['SkyCoord'],table['SkyCoord'])
+        table['match'] = np.empty(len(table),dtype='U12')
+        for i,a,row in zip(ID,angle,pn_NGC5068_herrmann):
+            if a.__lt__(Angle('0.8"')):
+                table['match'][i] += 'H08;'
+
+    for col in ['OIII5006','HA6562','NII6583','SII']:
+        table[col][np.where(table[col]<table[f'{col}_err'])] = table[f'{col}_err'][np.where(table[col]<table[f'{col}_err'])] 
+
+    table['OIII/Ha']   = table['OIII5006']/table['HA6562']
+    table['d(OIII/Ha)']= table['OIII5006'] / table['HA6562'] * np.sqrt( (table['HA6562_err'] / table['HA6562'])**2 + (table['OIII5006_err'] / table['OIII5006'])**2)
+
+    table['Ha/NII']    = table['HA6562']/table['NII6583']
+    table['d(Ha/NII)'] = table['HA6562'] / table['NII6583'] * np.sqrt( (table['NII6583_err'] / table['NII6583'])**2 + (table['HA6562_err'] / table['HA6562'])**2)
+
+    table['Ha/SII']    = table['HA6562']/table['SII']
+    table['d(Ha/SII)'] = table['HA6562'] / table['SII'] * np.sqrt( (table['SII_err'] / table['SII'])**2 + (table['HA6562_err'] / table['HA6562'])**2)
+
+    for col in ['mOIII','dmOIII','v_SIGMA','OIII/Ha','d(OIII/Ha)','Ha/NII','d(Ha/NII)','Ha/SII','d(Ha/SII)']:
+        table[col].info.format = '%.2f' 
+
+    # 
+    for typ in ['PN','SNR']:
+
+        tbl_out = table[table['type']==typ]
+
+        if typ == 'PN':
+            n = 'Planetary Nebula'
+        if typ == 'SNR':
+            n = 'Supernova Remnants'  
+
+        tbl_out.sort('mOIII')
+        tbl_out['name'] = np.arange(1,len(tbl_out)+1)
+
+        # add marker for existing study or excluded object
+        notes = []
+        for i,row in enumerate(tbl_out):
+            note = ''
+            if name == 'NGC0628' or name=='NGC3351' or name=='NGC3627' or name=='NGC5068':
+                note += row['match']
+            if row['overluminous']:
+                note += 'OL;'
+            if row['SNRorPN']:
+                note += 'PN;'
+            notes.append(note)        
+        tbl_out['notes'] = [x.strip(';') for x in notes]
+      
+
+        tbl_out.rename_columns(['name','RA','DEC','v_SIGMA'],['ID','R.A.','Dec.','sigmaV'])
+        tbl_out = tbl_out[['Galaxy','ID','notes','R.A.','Dec.','mOIII','dmOIII','OIII/Ha','d(OIII/Ha)',
+                           'Ha/NII','d(Ha/NII)','Ha/SII','d(Ha/SII)','sigmaV']]
+
+        with open((filename / f'{name}_{typ}_candidates').with_suffix('.txt'),'w',newline='\n') as f:
+            ascii.write(tbl_out,f,format='fixed_width_two_line',overwrite=True,delimiter_pad=' ',position_char='=')
+
+
+        with open((filename / f'{name}_{typ}_candidates').with_suffix('.tex'),'w',newline='\n') as f:
+            ascii.write(tbl_out,f,Writer=ascii.Latex,overwrite=True)
+
+        
+    logger.info(f'table saved to files (for {name})')
+
+
+def write_LaTeX_old(table,galaxy,filename):
     '''write the table to a file
 
     this will create a `.tex` file and a machine readable file
@@ -249,14 +357,13 @@ def write_LaTeX(table,galaxy,filename):
     if galaxy.name =='NGC0628':
         print('comparing to existing studies')
         from .load_references import NGC628
-        cat = {'Kreckel PN':'a','Herrmann PN':'b','Kreckel SNR':'c'}
+        cat = {'Kreckel PN':'K17','Herrmann PN':'H08','Kreckel SNR':'K17s'}
         ID, angle, Quantity  = match_coordinates_sky(NGC628['SkyCoord'],table['SkyCoord'])
         table['match'] = np.empty(len(table),dtype='U12')
         for i,a,row in zip(ID,angle,NGC628):
             if a.__lt__(Angle('0.8"')):
                 table['match'][i] += cat[row['source']]
-                if False:
-                    table['match'][i] += ' ' + row['ID']
+
 
     if galaxy.name =='NGC3351':
         print('comparing to existing studies')
@@ -265,7 +372,7 @@ def write_LaTeX(table,galaxy,filename):
         table['match'] = np.empty(len(table),dtype='U12')
         for i,a,row in zip(ID,angle,pn_NGC3351_ciardullo):
             if a.__lt__(Angle('0.8"')):
-                table['match'][i] += 'a'
+                table['match'][i] += 'C02'
 
     if galaxy.name =='NGC3627':
         print('comparing to existing studies')
@@ -274,7 +381,7 @@ def write_LaTeX(table,galaxy,filename):
         table['match'] = np.empty(len(table),dtype='U12')
         for i,a,row in zip(ID,angle,pn_NGC3627_ciardullo):
             if a.__lt__(Angle('0.8"')):
-                table['match'][i] += 'a'
+                table['match'][i] += 'C02'
 
     if galaxy.name =='NGC5068':
         print('comparing to existing studies')
@@ -283,7 +390,7 @@ def write_LaTeX(table,galaxy,filename):
         table['match'] = np.empty(len(table),dtype='U12')
         for i,a,row in zip(ID,angle,pn_NGC5068_herrmann):
             if a.__lt__(Angle('0.8"')):
-                table['match'][i] += 'a'
+                table['match'][i] += 'H08'
 
     for typ in ['PN','SNR']:
 
@@ -317,17 +424,20 @@ def write_LaTeX(table,galaxy,filename):
         tbl_out['d(Ha/SII)'] = np.empty(len(tbl_out),dtype='U8')
 
         # add marker for existing study or excluded object
-        names = []
+        names = np.arange(1,len(tbl_out)+1)
+        notes = []
         for i,row in enumerate(tbl_out):
-            name = str(i+1)
+            notes = ''
             if galaxy.name == 'NGC0628' or galaxy.name=='NGC3351' or galaxy.name=='NGC3627' or galaxy.name=='NGC5068':
                 name += row['match']
-            if row['exclude']:
-                name += '*'
-            if row['SNRorPN']:
+            if row['overluminous']:
                 name += '+'
+            if row['SNRorPN']:
+                name += 'PN'
+
             names.append(name)        
         tbl_out['name'] = names
+        tbl_out['notes'] = notes
 
         # calculate line ratios with limits (> sign)
         for i,row in enumerate(tbl_out):

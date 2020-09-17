@@ -128,6 +128,17 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         bkg_convolve = convolve(data,kernel,nan_treatment='interpolate',preserve_nan=True)
         #'''
 
+
+        source_mask = np.zeros(self.shape,dtype=bool)
+
+        for fwhm in np.unique(peak_tbl['fwhm']):
+            source_part = peak_tbl[peak_tbl['fwhm']==fwhm]
+            positions = np.transpose((source_part['x'], source_part['y']))
+            r = 4 * (fwhm-PSF_correction) / 2 
+            aperture = CircularAperture(positions, r=r)
+            for m in aperture.to_mask(method='center'):
+                source_mask |= m.to_image(self.shape).astype(bool)
+
         '''
         loop over the individual pointings (they have different fwhm)
         '''
@@ -144,10 +155,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
             aperture = CircularAperture(positions, r=r)
 
             # measure the flux for each source
-            phot = aperture_photometry(data, 
-                                       aperture, 
-                                       error = error,
-                                      )
+            phot = aperture_photometry(data, aperture, error = error)
 
             # calculate background in this aperture (from global map)
             phot['bkg_global'] = aperture_photometry(bkg, aperture)['aperture_sum']
@@ -155,24 +163,37 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
 
             # the local background subtraction estimates the background for 
-            # each source individually 
+            # each source individually (annulus with 3 times the area of aperture) 
             r_in  = 4 * (fwhm-PSF_correction) / 2 
-            r_out = np.sqrt(3*r**2+r_in**2)
+            r_out = np.sqrt(5*r**2+r_in**2)
             annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
             annulus_masks = annulus_aperture.to_mask(method='center')
 
+            # background from annulus with sigma clipping
             bkg_median = []
             for mask in annulus_masks:
                 # select the pixels inside the annulus and calulate sigma clipped median
                 annulus_data = mask.multiply(data)
                 annulus_data_1d = annulus_data[mask.data > 0]
-                _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=3,maxiters=None)          
+                median_sigclip,_ , _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=3,maxiters=3)          
                 bkg_median.append(median_sigclip)
-
             # save bkg_median in case we need it again
             phot['bkg_median'] = np.array(bkg_median) 
             # multiply background with size of the aperture
+            phot['bkg_global'] = phot['bkg_median'] * aperture.area
+            
+
+            # background from annulus with masked sources
+            ones = np.ones(self.shape)
+            # calculate flux in annulus where other sources are masked
+            bkg_phot = aperture_photometry(data,annulus_aperture,mask=source_mask)
+            # calculate area of the annulus (parts can be masked)
+            bkg_area = aperture_photometry(ones,annulus_aperture,mask=source_mask)
+            # save bkg_median in case we need it again
+            phot['bkg_median'] = bkg_phot['aperture_sum'] / bkg_area['aperture_sum'] 
+            # multiply background with size of the aperture
             phot['bkg_local'] = phot['bkg_median'] * aperture.area
+
 
             # we don't subtract the background from OIII because there is none
             if line == 'OIII5006_DAP':
@@ -264,20 +285,101 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         if extinction == 'all':
             flux[k][~np.isnan(extinction_int)] /= extinction_int[~np.isnan(extinction_int)]
 
-        flux[f'{k}_err'] = v['aperture_sum_err']
-        flux[f'{k}_bkg_local'] = v['bkg_local']
-        flux[f'{k}_bkg_global'] = v['bkg_global']
-        #flux[f'{k}_bkg_convole'] = v['bkg_convolve']
         flux[f'{k}_aperture_sum'] = v['aperture_sum']
-        flux[f'{k}_bkg'] = v['bkg_median']
+        flux[f'{k}_err'] = v['aperture_sum_err']
+        flux[f'{k}_bkg_local']  = v['bkg_local']
+        flux[f'{k}_bkg_global'] = v['bkg_global']
+        flux[f'{k}_bkg_median'] = v['bkg_median']
+        #flux[f'{k}_bkg_convole'] = v['bkg_convolve']
         flux[f'{k}_SIGMA'] = v['SIGMA']
 
     logger.info('all flux measurements completed')
 
     return flux
 
+def measure_single_flux(img,positions,aperture_size,model='Moffat',alpha=None,gamma=None,fwhm=None,bkg=True,plot=False):
+    '''Measure the flux for a single object
+    
+    The Background is subtracted from an annulus. No error is reported
 
-def growth_curve(data,x,y,model,rmax=30,plot=False,**kwargs):
+    Parameters
+    ----------
+
+    img : ndarray
+        array with the image data
+
+    position : tuple
+        position (x,y) of the source
+
+    aperture_size : float
+        aperture size in units of FWHM
+    
+    alpha : float
+        power index of the Moffat
+    
+    gamma : float
+        other parameter for the Moffat
+
+    bkg : bool
+        determines if the background is subtracted
+    '''
+
+    if model=='Moffat':
+        fwhm = 2 * gamma * np.sqrt(2**(1/alpha)-1)
+    
+    r = aperture_size * (fwhm) / 2 
+    aperture = CircularAperture(positions, r=r)
+    phot = aperture_photometry(img,aperture)
+
+    r_in  = 4 * fwhm / 2 
+    r_out = np.sqrt(3*r**2+r_in**2)
+    annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)
+    mask = annulus_aperture.to_mask(method='center')
+
+    annulus_data = mask.multiply(img)
+    annulus_data_1d = annulus_data[mask.data > 0]
+    _, median_sigclip, _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=3,maxiters=1)          
+
+    phot['bkg_median'] = np.array(median_sigclip) 
+    phot['bkg_local'] = phot['bkg_median'] * aperture.area
+    if bkg:
+        phot['flux'] = phot['aperture_sum'] - phot['bkg_local']
+    else:
+        phot['flux'] = phot['aperture_sum']
+
+    if model=='Moffat':
+        correction = light_in_moffat(r,alpha,gamma)
+    elif model=='Gaussian':
+        correction = light_in_gaussian(r,fwhm)
+    else:
+        raise ValueError(f'unkown model {model}')
+    phot['flux'] /= correction
+    
+    if plot:
+        from astropy.visualization import simple_norm
+
+        norm = simple_norm(img, 'sqrt', percent=99)
+        plt.imshow(img, norm=norm)
+        aperture.plot(color='orange', lw=2)
+        annulus_aperture.plot(color='red', lw=2)
+        plt.show()
+
+    #return phot
+    return phot['flux'][0]
+
+
+from astropy.modeling.models import custom_model
+from astropy.modeling import models, fitting
+
+@custom_model
+def _moffat_model(x,alpha=2.5,gamma=3.0):
+    return light_in_moffat(x,alpha,gamma)
+
+@custom_model
+def _gaussian_model(x,fwhm=2):
+    return light_in_gaussian(x,fwhm)
+
+def growth_curve(data,x,y,model,rmax=30,alpha=None,plot=False,**kwargs):
     '''do a growth curve analysis on the given star
     
     measure the amount of light as a function of radius and tries
@@ -351,20 +453,43 @@ def growth_curve(data,x,y,model,rmax=30,plot=False,**kwargs):
     # -----------------------------------------------------------------
 
     if model == 'moffat':
+        '''
         guess = np.array([2,2])
         func = light_in_moffat
         fit,sig = optimization.curve_fit(func, radius,flux , guess)
         alpha, gamma = fit[0], fit[1]
         fwhm = 2*gamma * np.sqrt(2**(1/alpha)-1)
         #print(f'alpha={alpha:.2f}, gamma={gamma:.2f}, fwhm={fwhm:.2f}')
+        '''
+        func = light_in_moffat
 
+        if alpha:
+            model = _moffat_model(alpha=alpha)
+            model.alpha.fixed=True
+        else:
+            model = _moffat_model()
+
+        fitter = fitting.LevMarLSQFitter() 
+        fitted_line = fitter(model, radius,flux)
+        alpha,gamma = fitted_line.parameters
+        fit = [alpha,gamma]
+        fwhm = 2*gamma * np.sqrt(2**(1/alpha)-1)
+        print(f'alpha={alpha:.2f}, gamma={gamma:.2f}, fwhm={fwhm:.2f}')
 
     elif model == 'gaussian':
+        '''
         guess =5
         func = light_in_gaussian
         fit,sig = optimization.curve_fit(func, radius,flux , guess)
         fwhm = fit[0]
-    
+        '''
+        func = light_in_gaussian
+
+        model = _gaussian_model()
+        fitter = fitting.LevMarLSQFitter() 
+        fitted_line = fitter(model, radius,flux)
+        fwhm = fitted_line.parameters
+        fit = [fwhm]    
     else:
         raise TypeError('model must be `moffat` or `gaussian`')
 
@@ -389,7 +514,7 @@ def growth_curve(data,x,y,model,rmax=30,plot=False,**kwargs):
         plt.legend()
         plt.grid()
 
-    return fit,sig
+    return fit
 
 
 

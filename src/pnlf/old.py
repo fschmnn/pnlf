@@ -453,3 +453,13 @@ def old_vs_new_linemaps():
 
     plt.show()
 
+def save_PN():
+    tmp = tbl[c_shape &  c_detec & c_limit & ~tbl['exclude'] & ((tbl['type']=='PN') | (tbl['type']=='SNR'))]
+    tbl_out = tmp[['id','type','x','y','mOIII','dmOIII','HA6562','HA6562_err',
+                            'NII6583','NII6583_err','SII','SII_err']]
+    tbl_out.sort('mOIII')
+    for col in tbl_out.columns[2:]:
+        tbl_out[col].info.format = '%.3f'
+
+    with open(basedir/'data'/f'{galaxy.name}_nebulae.txt','w',newline='\n') as f:
+        ascii.write(tbl_out,f,format='fixed_width_two_line',overwrite=True,delimiter_pad=' ',position_char='=')

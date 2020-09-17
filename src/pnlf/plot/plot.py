@@ -5,6 +5,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import figure, show
 
+import astropy
 from astropy.table import Table
 
 import astropy.units as u
@@ -66,8 +67,8 @@ def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
 
     fig = figure(figsize=(6.974,6.974/2))
     ax = fig.add_subplot(111, projection=wcs)
-    norm = simple_norm(data,'asinh',clip=False,min_percent=1,max_percent=98)
-    cmap = plt.cm.gray_r
+    norm = simple_norm(data,'asinh',clip=False,min_percent=1,max_percent=99.5)
+    cmap = plt.cm.hot
     cmap.set_bad('w')
 
     plt.imshow(data, 
@@ -78,9 +79,8 @@ def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
                #vmax=vmax
               )
 
-    colors = ['tab:red','tab:orange','tab:green']
-    for i,aperture in enumerate(apertures):
-        aperture.plot(color=colors[i],lw=.8, alpha=1)
+    for aperture in apertures:
+        aperture.plot(color='blue',lw=.5, alpha=1)
 
     ax.set_xlabel('RA')
     ax.set_ylabel('Dec')
@@ -152,10 +152,10 @@ def radial_profile(data, center):
     radialprofile = tbin / nr
     return radialprofile
  
-def single_cutout(self,x,y,size=32,aperture_size=None,percentile=99):
+def single_cutout(self,x,y,size=32,aperture_size=None,percentile=99,extension='OIII5006'):
     '''create cutouts of a single sources and plot it'''
 
-    extension = 'OIII5006'
+    
     data = getattr(self,extension)
     wcs  = self.wcs
     
@@ -189,10 +189,13 @@ def single_cutout(self,x,y,size=32,aperture_size=None,percentile=99):
 
     if aperture_size:
         aperture = CircularAperture((size/2+(x-int(x)),size/2+(y-int(y))),aperture_size)
-        aperture.plot(color='black',lw=0.8,ax=ax1)
-        aperture.plot(color='black',lw=0.8,ax=ax2)
+        aperture.plot(color='black',lw=0.8,axes=ax1)
+        aperture.plot(color='black',lw=0.8,axes=ax2)
         ax3.axvline(aperture_size,color='black',lw=0.8)
-
+        fwhm = aperture_size/2.5*2
+        ax3.axvline(2*fwhm,color='gray',lw=0.8)
+        ax3.axvline(np.sqrt((4*fwhm)**2+(1.25*fwhm)**2),color='gray',lw=0.8)
+        
 
     #ax1.set_xlim([x-size/2,x+size/2])
     #ax1.set_ylim([y-size/2,y+size/2])
@@ -211,8 +214,9 @@ def single_cutout(self,x,y,size=32,aperture_size=None,percentile=99):
 
     return ax1,ax2,ax3
 
+from astropy.visualization import AsymmetricPercentileInterval
 
-def create_RGB(r,g,b,weights=None,percentile=95):
+def create_RGB(r,g,b,stretch='linear',weights=None,percentile=95):
     '''combie three arrays to one RGB image
     
     Parameters
@@ -238,7 +242,7 @@ def create_RGB(r,g,b,weights=None,percentile=95):
     if not r.shape == g.shape == b.shape:
         raise ValueError('input arrays must have the dimensions')
     
-    # create an empty array with teh correct size
+    # create an empty array with the correct size
     rgb = np.empty((*r.shape,3))
     
     if type(percentile)==float or type(percentile)==int:
@@ -248,6 +252,7 @@ def create_RGB(r,g,b,weights=None,percentile=95):
     rgb[...,0] = r / np.nanpercentile(r,percentile[0])
     rgb[...,1] = g / np.nanpercentile(g,percentile[1])
     rgb[...,2] = b / np.nanpercentile(b,percentile[2])
+
     if weights:
         rgb[...,0] *= weights[0]
         rgb[...,1] *= weights[1]
@@ -261,4 +266,28 @@ def create_RGB(r,g,b,weights=None,percentile=95):
     return rgb
     
 
+def quick_plot(data,wcs=None,filename=None,**kwargs):
+    '''create a quick plot 
 
+    uses norm     
+    '''
+    
+    fig = plt.figure(figsize=(two_column,two_column))
+    
+    if isinstance(data,astropy.nddata.nddata.NDData):
+        ax = fig.add_subplot(projection=data.wcs)
+        img = data.data
+    elif wcs:
+        ax = fig.add_subplot(projection=wcs)
+        img = data
+    else:
+        ax = fig.add_subplot()
+        img = data
+        
+    norm = simple_norm(img,clip=False,percent=99)
+    ax.imshow(img,norm=norm,cmap=plt.cm.hot)
+    ax.set(**kwargs)
+    
+    if filename:
+        plt.savefig(filename,dpi=600)
+    plt.show()

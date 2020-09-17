@@ -2,7 +2,7 @@ import numpy as np
 from scipy.special import hyp2f1
 import astropy
 import astropy.units as u        
-from astropy.coordinates import Distance
+from astropy.coordinates import Distance, SkyCoord
 from .constants import arcsec_to_pixel
 
 class Distance_old:
@@ -317,3 +317,34 @@ def angular_diameter(D,d):
         
     return 2 * np.arctan(d/(2*D)).to(u.arcsec)
 
+
+def nanunique(arr):
+    '''Find the unique elements of an array (excluding NaNs).''' 
+
+
+    return np.unique(arr[~np.isnan(arr)])
+
+
+def resolution_from_wcs(wcs):
+    '''calculate the resolution in arcsecond for any given wcs
+    
+    Parameters
+    ----------
+    wcs
+    
+    Returns
+    -------
+    tuple : the extend per pixel in arcseconds
+    '''
+    
+    shape = wcs._naxis
+    
+    x = [0,0,shape[0]]
+    y = [0,shape[1],0]
+
+    coords = SkyCoord.from_pixel(x,y,wcs)
+    
+    dx = coords[0].separation(coords[1]) / shape[0]
+    dy = coords[0].separation(coords[1]) / shape[1]
+    
+    return (round(dx.to(u.arcsecond).value,3),round(dy.to(u.arcsecond).value,3))
