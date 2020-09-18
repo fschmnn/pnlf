@@ -128,7 +128,8 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         bkg_convolve = convolve(data,kernel,nan_treatment='interpolate',preserve_nan=True)
         #'''
 
-
+        '''
+        # this is too slow and the masks ignore bright HA emitter etc.
         source_mask = np.zeros(self.shape,dtype=bool)
 
         for fwhm in np.unique(peak_tbl['fwhm']):
@@ -138,6 +139,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
             aperture = CircularAperture(positions, r=r)
             for m in aperture.to_mask(method='center'):
                 source_mask |= m.to_image(self.shape).astype(bool)
+        '''
 
         '''
         loop over the individual pointings (they have different fwhm)
@@ -180,9 +182,9 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
             # save bkg_median in case we need it again
             phot['bkg_median'] = np.array(bkg_median) 
             # multiply background with size of the aperture
-            phot['bkg_global'] = phot['bkg_median'] * aperture.area
+            phot['bkg_local'] = phot['bkg_median'] * aperture.area
             
-
+            '''
             # background from annulus with masked sources
             ones = np.ones(self.shape)
             # calculate flux in annulus where other sources are masked
@@ -193,7 +195,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
             phot['bkg_median'] = bkg_phot['aperture_sum'] / bkg_area['aperture_sum'] 
             # multiply background with size of the aperture
             phot['bkg_local'] = phot['bkg_median'] * aperture.area
-
+            '''
 
             # we don't subtract the background from OIII because there is none
             if line == 'OIII5006_DAP':
@@ -281,6 +283,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
         flux[k] = v['flux'] 
         if extinction == 'MW' or extinction=='all':
+            #if k=='OIII5006':
             flux[k] /= extinction_mw 
         if extinction == 'all':
             flux[k][~np.isnan(extinction_int)] /= extinction_int[~np.isnan(extinction_int)]
@@ -433,8 +436,9 @@ def growth_curve(data,x,y,model,rmax=30,alpha=None,plot=False,**kwargs):
         flux.append(phot['aperture_sum'][0]-aperture.area*bkg_median)
         radius.append(r)
 
-        if test_convergence(flux,**kwargs):
-            break
+        #if test_convergence(flux,**kwargs):
+        #    pass
+        #    break
         
         r += 0.5
 
