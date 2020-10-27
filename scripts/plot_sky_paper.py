@@ -24,7 +24,7 @@ from astropy.io import ascii
 from photutils import CircularAperture         # define circular aperture
 from astropy.visualization import simple_norm
 
-from pymuse.io import ReadLineMaps
+from pnlf.io import ReadLineMaps
 
 basedir = Path('..')
 data_raw = Path('d:\downloads\MUSEDAP')

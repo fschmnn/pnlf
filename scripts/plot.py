@@ -21,13 +21,13 @@ logger = logging.getLogger(__name__)
 
 
 
-from pymuse.io import ReadLineMaps
+from pnlf.io import ReadLineMaps
 
 data_raw = Path('d:\downloads\MUSEDAP')
 NGC628 = ReadLineMaps(data_raw / 'NGC628')
 
 
-from pymuse.plot import create_RGB
+from pnlf.plot import create_RGB
 
 
 '''

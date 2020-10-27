@@ -6,8 +6,8 @@ from astropy.stats import gaussian_fwhm_to_sigma
 
 from photutils import aperture_photometry, CircularAperture
 
-from pymuse.photometry import growth_curve
-from pymuse.auxiliary import light_in_gaussian
+from pnlf.photometry import growth_curve
+from pnlf.auxiliary import light_in_gaussian
 
 
 def test_growth_curve():

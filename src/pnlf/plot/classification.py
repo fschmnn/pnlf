@@ -42,7 +42,7 @@ def classification_map(galaxy,parameters,tbl,filename):
     wcs=galaxy.wcs
     # ============================================================
 
-    from pymuse.plot.plot import create_RGB
+    from pnlf.plot.plot import create_RGB
     #rgb = create_RGB(galaxy.HA6562,galaxy.OIII5006,galaxy.SII6716,percentile=97)
     rgb = create_RGB(galaxy.HA6562,galaxy.OIII5006_DAP,galaxy.SII6716,weights=[0.8,1,0.9],percentile=[97,97,97])
 
@@ -86,7 +86,7 @@ def classification_map(galaxy,parameters,tbl,filename):
     
     # first we create a legend with three invisible handles
     labels=['HA6562','OIII5006','SII6716']
-    labels=[r'H$\alpha$',r'[OIII]',r'[SII]']
+    labels=[r'Halpha',r'[OIII]',r'[SII]']
     handles = 3*[mpl.patches.Rectangle((0, 0), 0, 0, alpha=0.0)]
     leg = ax3.legend(handles,labels, frameon=True,framealpha=0.7,handlelength=0,prop={'size': 6},loc=3)
 
@@ -104,7 +104,7 @@ def classification_map(galaxy,parameters,tbl,filename):
             xlabel='R.A. (J2000)',
             ylabel='Dec. (J2000)')
 
-    ax2.set(title=r'$\mathrm{H}\alpha$',
+    ax2.set(title=r'Halpha',
             xlabel='R.A. (J2000)')
             
     ax3.set_xticks([])

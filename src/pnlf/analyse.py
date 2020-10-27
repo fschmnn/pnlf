@@ -67,7 +67,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     table = table.copy()
 
     logger.info(f'{len(table)} entries in initial catalogue')
-    logger.info(f'using mu={distance_modulus}')
+    logger.info(f'using mu={distance_modulus:.2f}, cl={completeness_limit}')
 
     # make sure that the new column can save strings with 3 characters
     table['type'] = np.empty(len(table),dtype='U3')
@@ -83,7 +83,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     for col in ['OIII5006','HA6562','NII6583','SII']:
         # median of error maps is a factor of 3 smaller than std of maps
         detection = (table[col]>0) & (table[col]>9*table[f'{col}_err'])
-        logger.info(f'{np.sum(~detection)} not detected in {col}')
+        #logger.info(f'{np.sum(~detection)} not detected in {col}')
         table[col][np.where(table[col]<0)] = table[f'{col}_err'][np.where(table[col]<0)] 
         #table[col][np.where(~detection)] = table[f'{col}_err'][np.where(~detection)] 
         table[f'{col}_detection'] = detection
@@ -137,7 +137,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
         mask &=  ~np.isnan(table[col])
     table['type'][np.where(~mask)] = 'NaN'
     #table = table[mask]
-    logger.info(f'{np.sum(~mask)} rows contain NaN values')
+    #logger.info(f'{np.sum(~mask)} rows contain NaN values')
 
     # purely for information
     mask = table['mOIII']< completeness_limit
@@ -396,6 +396,19 @@ def PNLF(bins,mu,mhigh,Mmax=-4.47):
 
     return out
 
+def cdf(x,mu,mhigh,Mmax = -4.47):
+    '''Cumulative distribution function for PNe'''
+
+    mlow = mu+Mmax
+    
+    normalization = 1/(F(mhigh,mu,Mmax=Mmax)-F(mlow,mu,Mmax=Mmax))
+    out = normalization * (F(x,mu,Mmax=Mmax) - F(mlow,mu,Mmax=Mmax))
+    
+    out[x<mlow]  = 0
+    out[x>mhigh] = 1
+    
+    return out
+
 def sample_pnlf(size,mu,cl):
     
     Nbins = 1000
@@ -404,6 +417,15 @@ def sample_pnlf(size,mu,cl):
     u = np.random.uniform(size=size)
     
     return np.interp(u,cdf,x)
+
+'''
+from scipy.stats import ks_2samp
+from pnlf.analyse import sample_pnlf
+
+sampled_data = sample_pnlf(10000,galaxy.mu,galaxy.completeness_limit)
+ks,pv = ks_2samp(data,sampled_data)
+print(f'statistic={ks:.3f}, pvalue={pv:.3f}')
+'''
 
 
 def prior(mu):
@@ -441,3 +463,59 @@ def N25(mu,completeness,data,deltaM):
     p_deltaM = (F(cutoff+deltaM,mu) - F(cutoff,mu)) / (F(completeness,mu) - F(cutoff,mu))
     
     return N_total * p_deltaM
+
+
+
+from scipy.optimize import minimize
+
+
+def estimate_uncertainties_from_SII(tbl,catalogue=False,plot=False):
+    '''
+    The uncertainties in the PHANGS-MUSE DAP products are somewhat underestimated. 
+    To get a better handle on the errors, we use that the SII6716/SII6730 ratio
+    should theoretically be 1.4484. Any diviation from this value can be attributed
+    to the errors in the measurements. We divide the diviation by the error of the
+    ratio. This should follow a gaussian with width 1. From the actuall width of 
+    the distribution we can estimate the real uncertainty of the data.
+    
+    to use Francescos catalogue instead:
+
+    ```
+    with fits.open(data_raw/'..'/'DR1' /'AUXILIARY'/'Nebulae catalogue' / 'Nebulae_Catalogue.fits') as hdul:
+        nebulae = Table(hdul[1].data)
+    nebulae['gal_name'][nebulae['gal_name']=='NGC628'] = 'NGC0628'
+    nebulae = nebulae[(nebulae["flag_edge"] == 0) & (nebulae["flag_star"] == 0) & (nebulae["BPT_NII"] == 0) & (nebulae["BPT_SII"] == 0) & (nebulae["BPT_OI"] == 0) & (nebulae['HA6562_SIGMA'] < 100)]
+    nebulae.rename_columns(['SII6730_FLUX','SII6730_FLUX_ERR','SII6716_FLUX','SII6716_FLUX_ERR'],['SII6730','SII6730_err','SII6716','SII6716_err'])
+    nebulae['type'] = 'HII'
+    ```
+
+    '''
+
+    tmp = tbl[(tbl['type']=='HII') & (tbl['SII6730']>0) &  (tbl['SII6716']>0)]
+    ratio =  tmp['SII6716'] / tmp['SII6730']
+    ratio_err =  ratio * np.sqrt((tmp['SII6716_err']/tmp['SII6716'])**2+(tmp['SII6730_err']/tmp['SII6730'])**2)
+    diff_norm = (ratio-1.4484) / ratio_err
+    diff_norm = diff_norm[diff_norm>0] 
+    
+    gauss = lambda x,mu,std: 1/np.sqrt(2* np.pi*std**2) * np.exp(-0.5 * ((x - mu) / std)**2)
+    log_likelihood = lambda std,x: - np.sum(np.log(gauss(x,0,std)))
+    std = minimize(log_likelihood,[1],args=(diff_norm,)).x[0]
+
+    if plot:
+        fig, ax = plt.subplots(figsize=(4,3))
+
+        hist, bins, patches = ax.hist((ratio-1.4484) / ratio_err,bins=20,range=(0,6),color='silver')
+        
+        y2 = gauss(bins,0,1)
+        ax.plot(bins,hist[0]/y2[0]*y2, '--',label='std=1',color='tab:blue')
+        y = gauss(bins,0,std)
+        ax.plot(bins,hist[0]/y[0]*y, '--',label=f'std={std:.2f}',color='tab:red')
+
+        ax.legend()
+        
+        ax.set(xlabel="Deviation / Error",ylabel="Number of regions",yscale='log',ylim=[1,1.5*hist[0]])
+        plt.show()
+    
+    logger.info(f'std={std:.2f}')
+    return std
+

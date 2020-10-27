@@ -150,3 +150,30 @@ def make_rgb_image(image_r,image_g,image_b, vmin=None, vmax=None, vmid=1,
     rgb = create_RGB(image_r,image_g,image_b,percentile=1)
     
     return rgb
+
+
+
+def combine_catlaogues():
+    filename = data_ext / 'HST' / 'cluster catalogue' / f'ngc628c_phangshst_base_catalog.fits'
+with fits.open(filename) as hdul:
+        clustersc = Table(hdul[1].data)
+    SkyCoord_c = SkyCoord(clustersc['PHANGS_RA']*u.degree,clustersc['PHANGS_DEC']*u.degree)
+    x_c,y_c = SkyCoord_c.to_pixel(hst_whitelight.wcs)
+    clustersc['PHANGS_X'] = x_c
+    clustersc['PHANGS_Y'] = y_c
+
+    filename = data_ext / 'HST' / 'cluster catalogue' / f'ngc628e_phangshst_base_catalog.fits'
+    with fits.open(filename) as hdul:
+        clusterse = Table(hdul[1].data) 
+    SkyCoord_e = SkyCoord(clusterse['PHANGS_RA']*u.degree,clusterse['PHANGS_DEC']*u.degree)
+    x_e,y_e = SkyCoord_e.to_pixel(hst_whitelight.wcs)
+    clusterse['PHANGS_X'] = x_e
+    clusterse['PHANGS_Y'] = y_e
+
+    clustersc['pointing'] = 'central'
+    clusterse['pointing'] = 'east'
+
+    clusters = vstack([clustersc,clusterse])
+    hdu = fits.BinTableHDU(clusters)
+    filename = data_ext / 'HST' / 'cluster catalogue' / f'ngc0628_phangshst_base_catalog.fits'
+    hdu.writeto(filename,overwrite=True)

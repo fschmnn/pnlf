@@ -14,7 +14,9 @@ from astropy.table import Table
 from astropy.coordinates import Distance
 import astropy.units as u
 
-from ..analyse import PNLF
+from scipy.stats import kstest
+
+from ..analyse import PNLF, cdf
 
 basedir = Path(__file__).parent.parent.parent.parent
 logger = logging.getLogger(__name__)
@@ -58,7 +60,7 @@ def _plot_pnlf(data,mu,completeness,binsize=0.4,mlow=None,mhigh=None,Mmax=-4.47,
                  marker='o',ms=6,mec=color,mfc=color,ls='none',ecolor=color,alpha=alpha,label=r'$m_\mathrm{[OIII]}<$completeness limit')
     ax.errorbar(m[m>=completeness],hist[m>=completeness],yerr=err[m>completeness],
                  marker='o',ms=6,mec=color,mfc='white',ls='none',ecolor=color,alpha=alpha,label=r'$m_\mathrm{[OIII]}>$completeness limit')
-    ax.plot(m_fine,binsize/binsize_fine*N*PNLF(bins_fine,mu=mu,mhigh=completeness),c=color,ls='dotted')
+    ax.plot(m_fine,binsize/binsize_fine*N*PNLF(bins_fine,mu=mu,mhigh=completeness),c='black',ls='dotted')
 
     ax.set_yscale('log')
     ax.set_xlim([1.1*mlow-0.1*mhigh,mhigh])
@@ -106,20 +108,36 @@ def _plot_cum_pnlf(data,mu,completeness=None,binsize=None,mlow=None,mhigh=None,M
     else:
         fig = ax.get_figure()
 
+    data.sort()
+
+    # old version with binned cdf
+    #ax.plot(m_fine,N*np.cumsum(PNLF(bins_fine,mu=mu,mhigh=completeness)),ls='dotted',color=color)
+    ax.plot(data[data<completeness],N*cdf(data[data<completeness],mu,completeness),ls='--',color='k')
+
     if binsize:
         bins = np.arange(mlow,mhigh,binsize)
         m = (bins[1:]+bins[:-1]) /2
         hist,_ = np.histogram(data,bins,density=False)
         ax.plot(m[m<completeness],np.cumsum(hist[m<completeness]),ls='none',mfc=color,mec=color,ms=2,marker='o')
     else:
-        data.sort()
-        ax.plot(data,np.arange(1,len(data)+1,1),ls='none',mfc=color,mec=color,ms=2,marker='o',alpha=alpha)
-    
-    ax.plot(m_fine,N*np.cumsum(PNLF(bins_fine,mu=mu,mhigh=completeness)),ls='dotted',color=color)
-    
+        ax.plot(data[data<completeness],np.arange(1,N+1,1),ls='none',mfc=color,mec=color,ms=1,marker='o',alpha=alpha)
+
+
+
+    diff = np.abs(cdf(data[data<completeness],mu,completeness)-np.arange(1,N+1)/N)
+    i = np.argmax(diff)
+    y = (N*cdf(data,mu,completeness)[i],np.arange(1,N+1)[i])
+    ax.plot([data[i],data[i]], [min(y),max(y)],color='black')
+
+    '''
+    ks,pv = kstest(data[data<completeness],cdf,args=(mu,completeness))
+    #print(f'statistic={ks:.3f}, pvalue={pv:.3f}')
+    ax.text(0.1,0.9,f'$D_{{max}}={ks:.3f}$', transform=ax.transAxes)
+    '''
+
     # adjust plot    
-    ax.set_xlim([mlow,completeness+0.2])
-    ax.set_ylim([-0.1*N,1.1*N])
+    ax.set_xlim([mlow,completeness])
+    ax.set_ylim([0,1.02*N])
     
     ax.xaxis.set_major_locator(mpl.ticker.MultipleLocator(1.0))
     ax.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.25))

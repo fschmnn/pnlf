@@ -16,7 +16,7 @@ A more detailed description of the functionality is either provided by the docst
 
 ## Installation
 
-In principle one could clone this repository from [github](https://github.com/fschmnn/pymuse) and use it right away. However to ensure that everything works as intended, a few additional steps are recommended.
+In principle one could clone this repository from [github](https://github.com/fschmnn/pnlf) and use it right away. However to ensure that everything works as intended, a few additional steps are recommended.
 
 1. **Set up conda environment**: It is highly advised to run data science projects in a dedicated environment. This has the advantage that any third party packages have the correct version installed which helps to make the results reproducible. We use *conda* to do this. The required packages are listed in `environment.yml` and a new environment, called `pymuse` is created with
 
@@ -62,7 +62,7 @@ And that's it. You may have noticed that the project already contains folders an
 The raw data for the project is supposed to be stores in `/data/raw`. However since I do not have enough space on my hard drive, I keep those files on an external drive. For easy access I created a symbolic link between the two folders like so 
 
 ```
-mklink /J data/raw g:\Archive
+mklink /J data\raw g:\Archive
 ```
 
 (see this [link](https://www.howtogeek.com/howto/16226/complete-guide-to-symbolic-links-symlinks-on-windows-or-linux/) for more information on symbolic links)
@@ -107,7 +107,7 @@ Here are a few examples on what to do with this package
 
    ```python
    from pathlib import Path
-   from pymuse.io import ReadLineMaps
+   from pnlf.io import ReadLineMaps
    
    data_folder = Path('../data/raw')
    NGC628 = ReadLineMaps(data_folder / 'NGC628')
@@ -117,7 +117,7 @@ Here are a few examples on what to do with this package
 
    ```python
    from photutils import DAOStarFinder
-   from pymuse.detection import detect_unresolved_sources
+   from pnlf.detection import detect_unresolved_sources
    
    sources = detect_unresolved_sources(NGC628,['OIII5006'],DAOStarFinder)
    ```

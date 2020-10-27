@@ -2,7 +2,7 @@
 
 instead of importing all those packages each time by hand, simply use
     
-    `from pymuse.packages import *`
+    `from pnlf.packages import *`
 '''
 
 # ---------------------------------------------------------------------
@@ -25,6 +25,7 @@ import yaml
 import numpy as np                       # arrays
 import scipy as sp                       # useful functions
 
+
 # ---------------------------------------------------------------------
 # plotting routines
 # ---------------------------------------------------------------------
@@ -39,7 +40,7 @@ import astropy
 
 from astropy.table import Table,QTable   # useful datastructure
 from astropy.table import vstack         # combine multiple tables
-from astropy.nddata import NDData        # store image and header
+from astropy.nddata import NDData, StdDevUncertainty  # store image and header
 
 from astropy.io import ascii,fits        # open text and fits files
 

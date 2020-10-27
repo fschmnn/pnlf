@@ -363,7 +363,7 @@ def old_vs_new_linemaps():
     peak_tbl = sources
 
 
-    from pymuse.photometry import light_in_moffat, correct_PSF
+    from pnlf.photometry import light_in_moffat, correct_PSF
     from photutils import CircularAnnulus, CircularAperture, aperture_photometry
 
     alpha = galaxy.alpha

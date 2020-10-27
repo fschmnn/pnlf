@@ -20,12 +20,12 @@ from photutils import DAOStarFinder
 
 from extinction import ccm89
 
-from pymuse.auxiliary import search_table
-from pymuse.io import ReadLineMaps
-from pymuse.detection import detect_unresolved_sources, completeness_limit
-from pymuse.photometry import measure_flux
-from pymuse.analyse import emission_line_diagnostics, MaximumLikelihood, pnlf, Distance
-from pymuse.plot.pnlf import plot_emission_line_ratio, plot_pnlf
+from pnlf.auxiliary import search_table
+from pnlf.io import ReadLineMaps
+from pnlf.detection import detect_unresolved_sources, completeness_limit
+from pnlf.photometry import measure_flux
+from pnlf.analyse import emission_line_diagnostics, MaximumLikelihood, pnlf, Distance
+from pnlf.plot.pnlf import plot_emission_line_ratio, plot_pnlf
 
 logging.basicConfig(#filename='log.txt',
                     #filemode='w',  

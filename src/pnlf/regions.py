@@ -9,6 +9,8 @@ from astropy.visualization import simple_norm
 
 from skimage.measure import regionprops, find_contours
 
+from .auxiliary import resolution_from_wcs
+
 logger = logging.getLogger(__name__)
 
 class Regions:
@@ -142,7 +144,13 @@ class Regions:
                 raise ValueError('you need to specify a shape')
         else:
             raise ValueError('output_projection not understood')
-        
+
+        # this causes problems
+        res_in  = resolution_from_wcs(self.wcs)
+        res_out = resolution_from_wcs(wcs)
+        if res_in[0]>res_out[0] or res_in[1]>res_out[1]:
+            logger.warning('output projection is finer than input projection') 
+
         # those transformations are weird. we need to switch the columns before and after
         world = [self.wcs.all_pix2world(np.array(c[::-1]).T,0) for c in self.coords]
         output_pix = []
@@ -186,5 +194,31 @@ class Regions:
         show()        
 
     
+    def __str__(self):
+        return f'dim={self.shape} with {len(self.labels)} regions'
+
     def __repr__(self):
-        pass
+        return f'dim={self.shape} with {len(self.labels)} regions'
+
+
+
+from skimage.feature import corner_harris, corner_subpix, corner_peaks
+
+def find_region(image,plot=False):
+    '''
+    
+    https://scikit-image.org/docs/stable/auto_examples/features_detection/plot_corner.html
+    ''' 
+
+
+    coords = corner_peaks(corner_harris(image), min_distance=5, threshold_rel=0.5,exclude_border=False)
+    #coords_subpix = corner_subpix(image, coords, window_size=13)
+    
+    if plot:
+        fig, ax = plt.subplots()
+        ax.imshow(image, cmap=plt.cm.gray)
+        ax.plot(coords[:, 1], coords[:, 0], color='cyan', marker='o',
+                linestyle='None', markersize=6)
+        ax.plot(coords_subpix[:, 1], coords_subpix[:, 0], '+r', markersize=15)
+        plt.show()
+        

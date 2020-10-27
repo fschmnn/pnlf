@@ -56,12 +56,25 @@ class ReadLineMaps:
 
         # PSF is given in arcsec but we need it in pixel
         
+        logger.info(f'loading {name}')
+
         self.name     = name
-        self.filename = folder / 'MUSEDAP' / f'{self.name}_MAPS.fits'
+        filename = folder/f'{name}_MAPS.fits'
+        if not filename.is_file():
+            files = [x for x in folder.iterdir() if name in x.stem]
+            if len(files)>1:
+                logger.warning(f'more than one file with name "{name}" in folder')
+                self.filename = files[0]
+            elif len(files)==0:
+                logger.warning(f'no file found with name "{name}"')
+                sys.exit(0)
+            else:
+                logger.info(f'using file "{files[0].stem}"')
+                self.filename = files[0]
+        else: 
+            self.filename = filename
         self.lines    = []
         
-        logger.info(f'loading {self.name}')
-
         for k,v in kwargs.items():
             setattr(self,k,v)
 
@@ -103,7 +116,7 @@ class ReadLineMaps:
         #==============================================================
         
         # and one where OIII is not measured by fitting
-        OIII_bkg_map_file = folder / 'AUXILIARY' / 'oiii_from_cubes' / f'{self.name}_oiii_flux.fits'
+        OIII_bkg_map_file = folder.parent / 'AUXILIARY' / 'oiii_from_cubes' / f'{self.name}_oiii_flux.fits'
         if OIII_bkg_map_file.is_file():
             logger.info(f'replacing OIII5006 map')
             # replace the old line maps with the new one
@@ -115,9 +128,9 @@ class ReadLineMaps:
             logger.warn(f'"{self.name}_oiii_flux.fits" does not exists.')
 
         # star mask
-        star_mask_file = folder / 'AUXILIARY' / 'starmasks_v01' / f'{self.name}_starmask.fits'
-        seeing_map_file = folder / 'AUXILIARY' / 'seeing_maps' / f'{self.name}_seeing.fits'
-        av_file = folder  / 'AUXILIARY' / 'AVmaps' / f'{self.name}_AV.fits'
+        star_mask_file = folder.parent / 'AUXILIARY' / 'starmasks_v01' / f'{self.name}_starmask.fits'
+        seeing_map_file = folder.parent / 'AUXILIARY' / 'seeing_maps' / f'{self.name}_seeing.fits'
+        av_file = folder.parent  / 'AUXILIARY' / 'AVmaps' / f'{self.name}_AV.fits'
 
         for filename, description in zip([star_mask_file,seeing_map_file,av_file],["star_mask","PSF","Av"]):
 

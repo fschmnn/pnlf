@@ -1,8 +1,8 @@
-======
-pymuse
-======
+====
+pnlf
+====
 
-This is the documentation of **pymuse**.
+This is the documentation of **pnlf**.
 
 .. note::
 

@@ -114,6 +114,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
         # calculate a global background map
         mask = np.isnan(data)
+        '''
         bkg = Background2D(data,(10,10), 
                         #filter_size=(15,15),
                         sigma_clip= None,#SigmaClip(sigma=3.,maxiters=None), 
@@ -121,14 +122,12 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
                         mask=mask).background
         bkg[mask] = np.nan
 
-        #'''
         from astropy.convolution import convolve, Gaussian2DKernel, Box2DKernel
 
         kernel = Box2DKernel(10) #Gaussian2DKernel(10) 
         bkg_convolve = convolve(data,kernel,nan_treatment='interpolate',preserve_nan=True)
-        #'''
 
-        '''
+    
         # this is too slow and the masks ignore bright HA emitter etc.
         source_mask = np.zeros(self.shape,dtype=bool)
 
@@ -160,7 +159,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
             phot = aperture_photometry(data, aperture, error = error)
 
             # calculate background in this aperture (from global map)
-            phot['bkg_global'] = aperture_photometry(bkg, aperture)['aperture_sum']
+            phot['bkg_global'] = 0 #aperture_photometry(bkg, aperture)['aperture_sum']
             #phot['bkg_convolve'] = aperture_photometry(bkg_convolve, aperture)['aperture_sum']
 
 
@@ -243,13 +242,6 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
     extinction_model = CCM89(Rv=Rv)
     #k = lambda lam: ext_model.evaluate(lam*u.angstrom,Rv) * Rv
 
-    if extinction == 'all':
-        logger.info(f'correcting for internal and MW-extinction')
-    elif extinction == 'MW':
-         logger.info(f'correcting for MW-extinction')
-    elif extinction != None:
-        logger.warning(f'unkown extinction {extinction}')
-
     # so far we have an individual table for each emission line
     for k,v in out.items():
         
@@ -270,21 +262,22 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
             else:
                 flux['Ebv'] = 0
 
-        # correct for extinction        
+        flux[k] = v['flux'] 
+        
+        # linemaps are already MW extinction corrected (OIII sum is not) 
         wavelength = re.findall(r'\d{4}', k)
         if len(wavelength) != 1:
             logger.error('line name must contain wavelength as 4 digit number in angstrom')
         wavelength = int(wavelength[0])
         extinction_mw = extinction_model.extinguish(wavelength*u.angstrom,Ebv=Ebv)
-        logger.info(f'lambda{wavelength}: Av={-2.5*np.log10(extinction_mw):.2f}')
-        
+
+        if k=='OIII5006':
+            flux[k] /= extinction_mw
+            logger.info(f'lambda{wavelength}: Av={-2.5*np.log10(extinction_mw):.2f}')
+ 
         #extinction_int = extinction_model.extinguish(wavelength*u.angstrom,Av=flux['Av'])
         extinction_int = extinction_model.extinguish(wavelength*u.angstrom,Av=flux['Av'])
 
-        flux[k] = v['flux'] 
-        if extinction == 'MW' or extinction=='all':
-            #if k=='OIII5006':
-            flux[k] /= extinction_mw 
         if extinction == 'all':
             flux[k][~np.isnan(extinction_int)] /= extinction_int[~np.isnan(extinction_int)]
 

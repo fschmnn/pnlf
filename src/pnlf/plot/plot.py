@@ -214,6 +214,112 @@ def single_cutout(self,x,y,size=32,aperture_size=None,percentile=99,extension='O
 
     return ax1,ax2,ax3
 
+def cutout_with_profile(self,table,size=32,diagnostics=False,filename=None):
+    '''create cutouts of a single sources and plot it'''
+
+    data = getattr(self,'OIII5006')
+    wcs  = self.wcs
+    
+    ncols = 5
+    nrows = int(np.ceil(len(table)/ncols))
+
+    width = 2*two_column
+    fig, axes = plt.subplots(nrows=nrows,ncols=ncols,figsize=(width,width/ncols*nrows))
+    axes_iter = iter(axes.flatten())
+    
+    print(f'plotting RGB+profile for {len(table)} objects')
+
+    for row in table:
+        
+        ax1 = next(axes_iter)
+        x,y = row[['x','y']]
+        aperture_size=2.5*row['fwhm']/2
+
+        # defien the size of the cutout region
+        star = Cutout2D(data, (x,y), u.Quantity((size, size), u.pixel),wcs=wcs)
+
+        rgb = create_RGB(self.HA6562,self.OIII5006,self.SII6716,percentile=99)
+        yslice = slice(int(x-size/2),int(x+size/2))
+        xslice = slice(int(y-size/2),int(y+size/2))
+        
+        ax1.set_yticks([])
+        ax1.set_xticks([])
+        try:
+            im = ax1.imshow(rgb[xslice,yslice,:],origin='lower')
+        except:
+            text = f'{row["type"]}: {row["id"]}'
+            t = ax1.text(0.05,0.9,text, transform=ax1.transAxes,color='black',fontsize=8)
+            continue    
+
+
+        # plot the radial profile
+        profile = radial_profile(star.data,star.input_position_cutout)
+
+        ax2 = ax1.inset_axes([0.01, 0.01, 0.32, 0.25])
+        ax2.plot(profile,color='black')
+
+        aperture = CircularAperture((size/2+(x-int(x)),size/2+(y-int(y))),aperture_size)
+        aperture.plot(color='tab:red',lw=0.8,axes=ax1)
+        ax2.axvline(aperture_size,color='tab:red',lw=0.5)
+        #fwhm = aperture_size/2.5*2
+        #ax2.axvline(2*fwhm,color='gray',lw=0.8)
+        #ax2.axvline(np.sqrt((4*fwhm)**2+(1.25*fwhm)**2),color='gray',lw=0.8)
+
+        ax2.set_yticks([])
+        ax2.set_xticks([])
+
+        if diagnostics:
+            # plot the line ratio
+            ax3 = ax1.inset_axes([0.33, 0.01, 0.33, 0.25])
+            mu = np.nanmean(table['mOIII']-table['MOIII'])
+            MOIII = np.linspace(-5,-1)
+            OIII_Ha = 10**(-0.37*(MOIII)-1.16)
+            ax3.plot(MOIII,OIII_Ha,c='black',lw=0.6)
+            ax3.axhline(10**4)
+            ax3.axvline(-4.47,ls='--',c='grey',lw=0.5)
+            ax3.scatter(row['mOIII']-mu,row['OIII5006']/(row['HA6562']+row['NII6583']),marker='o',s=5,color='black') 
+
+            if not row['HA6562_detection']:
+                ax3.errorbar(row['mOIII']-mu,1.11*row['OIII5006']/(row['HA6562']+row['NII6583']),
+                                marker=r'$\uparrow$',ms=4,mec='black',ls='none') 
+            ax3.set(xlim=[-5,-1],ylim=[0.03,200],yscale='log')
+            ax3.set_yticks([])
+            ax3.set_xticks([])
+
+            # plot the line ratio 
+            ax4 = ax1.inset_axes([0.66, 0.01, 0.32, 0.25])
+            ax4.scatter(np.log10(row['HA6562']/row['SII']),np.log10(row['HA6562']/row['NII6583']),marker='o',s=5,color='black')
+            ax4.axvline(np.log10(2.5),c='black',lw=0.6) 
+
+            if not row['HA6562_detection'] or not row['SII_detection']:
+                ax4.errorbar(0.03+np.log10(row['HA6562']/row['SII']),np.log10(row['HA6562']/row['NII6583']),
+                            marker=r'$\!\rightarrow$',ms=4,mec='black',ls='none') 
+            ax4.set(xlim=[-0.5,1.5],ylim=[-0.5,1.5])
+            ax4.set_yticks([])
+            ax4.set_xticks([])
+
+        if row['exclude'] or row['overluminous']:
+            for loc in ['bottom','top','right','left']:
+                ax1.spines[loc].set_color('tab:orange')
+                ax1.spines[loc].set_linewidth(3)
+
+        text = f'{row["type"]}: {row["id"]}'
+        t = ax1.text(0.05,0.9,text, transform=ax1.transAxes,color='black',fontsize=8)
+        t.set_bbox(dict(facecolor='white', alpha=1, ec='white'))
+        
+    for i in range(nrows*ncols-len(table)):
+
+        # remove the empty axes at the bottom
+        ax = next(axes_iter)
+        ax.remove()
+    
+    plt.subplots_adjust(wspace=-0.01,hspace=0.05)
+    if filename:
+        #plt.savefig(filename.with_suffix('.png'),dpi=600)
+        plt.savefig(filename.with_suffix('.pdf'),dpi=600)
+    plt.show()
+
+
 from astropy.visualization import AsymmetricPercentileInterval
 
 def create_RGB(r,g,b,stretch='linear',weights=None,percentile=95):
@@ -266,7 +372,7 @@ def create_RGB(r,g,b,stretch='linear',weights=None,percentile=95):
     return rgb
     
 
-def quick_plot(data,wcs=None,filename=None,**kwargs):
+def quick_plot(data,wcs=None,cmap=plt.cm.hot,filename=None,**kwargs):
     '''create a quick plot 
 
     uses norm     
@@ -285,9 +391,12 @@ def quick_plot(data,wcs=None,filename=None,**kwargs):
         img = data
         
     norm = simple_norm(img,clip=False,percent=99)
-    ax.imshow(img,norm=norm,cmap=plt.cm.hot)
+    ax.imshow(img,norm=norm,cmap=cmap)
     ax.set(**kwargs)
     
     if filename:
         plt.savefig(filename,dpi=600)
-    plt.show()
+    
+    #plt.show()
+
+    return ax

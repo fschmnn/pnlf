@@ -19,7 +19,7 @@ plt.style.use('TeX.mplstyle')
 
 from astropy.io import ascii 
 
-from pymuse.analyse import PNLF, pnlf
+from pnlf.analyse import PNLF, pnlf
 
 basedir = Path('..')
 

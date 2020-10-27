@@ -1,4 +1,4 @@
-from pymuse.analyse import f,F
+from pnlf.analyse import f,F
 
 import numpy as np
 from scipy.integrate import quad

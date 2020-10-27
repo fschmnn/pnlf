@@ -1,4 +1,4 @@
-from pymuse.analyse import MaximumLikelihood
+from pnlf.analyse import MaximumLikelihood
 
 import numpy as np
 from scipy.special import factorial
