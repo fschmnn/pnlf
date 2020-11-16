@@ -40,7 +40,7 @@ import astropy
 
 from astropy.table import Table,QTable   # useful datastructure
 from astropy.table import vstack         # combine multiple tables
-from astropy.nddata import NDData, StdDevUncertainty  # store image and header
+from astropy.nddata import NDData, StdDevUncertainty, Cutout2D  
 
 from astropy.io import ascii,fits        # open text and fits files
 
@@ -51,7 +51,8 @@ from astropy.coordinates import Distance # convert between pc and m-M
 
 from astropy.stats import sigma_clipped_stats  
 
-import astropy.units as u        
+import astropy.units as u
+import astropy.constants as c
 
 from photutils import CircularAperture
 

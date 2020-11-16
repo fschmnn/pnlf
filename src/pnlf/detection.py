@@ -26,6 +26,7 @@ from photutils import make_source_mask, CircularAperture
 
 from .io import ReadLineMaps
 from .auxiliary import correct_PSF
+from .analyse import sample_pnlf
 
 from .constants import tab10, single_column, two_column
 
@@ -202,16 +203,58 @@ def match_catalogues(matchcoord,catalogcoord):
         
     return idx, sep
 
+
+def plot_completeness_limit(mock_sources,max_sep,limit,filename=None):
+
+    hist = []
+    width = 0.5
+    bins = np.arange(26,30,width)
+
+    for center in bins:
+        tmp = mock_sources[(mock_sources['magnitude']>center-width/2) & (mock_sources['magnitude']<=center+width/2)]
+        if len(tmp)>0:
+            hist.append(np.sum(tmp['sep']<max_sep)/len(tmp))
+        else:
+            hist.append(0)
+        print(f'{center}: {len(tmp)} objects')
+    hist = np.array(hist)
+    
+    completeness_limit = np.max(bins[hist>=limit])
+    logger.info(f'completeness limit = {completeness_limit} (above {limit*100}%)')
+    
+    fig, ax = plt.subplots(figsize=(single_column,single_column/1.618))
+    ax.axhline(100*limit,color='black',lw=0.6)
+    
+    ax.bar(bins[hist>=limit],hist[hist>=limit]*100,width=width*0.9,color=tab10[0])
+    ax.bar(bins[hist<limit],hist[hist<limit]*100,width=width*0.9,fc='white',ec=tab10[0])
+    
+    for b,h in zip(bins,hist):
+        if h>=0.8:
+            ax.text(b,5,f'{h*100:.0f}\%',horizontalalignment='center',color='white',fontsize=6)
+        else:
+            ax.text(b,5,f'{h*100:.0f}\%',horizontalalignment='center',color=tab10[0],fontsize=6)
+            
+    ax.set(xlabel='m$_{[\mathrm{OIII}]}$',
+           ylabel='percentage of recovered objects',
+           ylim=[0,100])
+    ax.set_title(f'completeness limit = {completeness_limit} (above {limit*100:.0f}\%)')
+    
+    if filename:
+        plt.savefig(filename)
+    plt.show()
+
 def completeness_limit(
     self,
     line,
     StarFinder,
     threshold,
+    distance_modulus,
+    limit = 0.8,
+    max_sep = 0.5,
     oversize=1.,
     exclude_region=None,
-    stars_per_mag=10,
     iterations=1,
-    test_range=[26.5,29.5],
+    n_sources = 500,
     plot=False,
     **kwargs
     ): 
@@ -251,8 +294,6 @@ def completeness_limit(
     #----------------------------------------------------------------
     # craete mock data
     #----------------------------------------------------------------
-    apparent_magnitude = np.arange(*test_range,0.5)    
-    n_sources = len(apparent_magnitude) * stars_per_mag
     
     try:
         wavelength = int(re.findall(r'\d{4}', line)[0])
@@ -267,8 +308,7 @@ def completeness_limit(
         logger.info(f'iteration {j+1} of {iterations}')
 
         mock_sources = Table(data=np.zeros((n_sources,7)),names=['magnitude','flux','x_mean','y_mean','x_stddev','y_stddev','theta'])
-        for i,m in enumerate(apparent_magnitude):
-            mock_sources[i*stars_per_mag:(i+1)*stars_per_mag]['magnitude'] = m
+        mock_sources['magnitude'] = sample_pnlf(n_sources,distance_modulus,29.75)
         mock_sources['flux'] = 10**(-(mock_sources['magnitude']+13.74)/2.5) *1e20
         
         # create a number of random points (more than we need because
@@ -338,7 +378,6 @@ def completeness_limit(
                                 threshold = threshold*std,
                                 **daoargs)
             peaks_part = finder(mock_img, mask=(~psf_mask | exclude_region))
-        
 
             if peaks_part:
                 #logger.info(f'fwhm={fwhm:.3f}: {len(peaks_part)} sources found')
@@ -364,42 +403,28 @@ def completeness_limit(
         idx , sep = match_catalogues(mock_sources[['x_mean','y_mean']],peak_tbl[['xcentroid','ycentroid']])
         mock_sources['sep'] = sep
         mock_sources['peak'] = peak_tbl[idx]['peak']
-
-        sep_pix = 0.5
-        bins = np.arange(np.min(apparent_magnitude)-0.25,np.max(apparent_magnitude)+0.75,0.5)
         
-        h,_ = np.histogram(mock_sources[mock_sources['sep']<sep_pix]['magnitude'],bins=bins)
-
-        if 'hist' in locals():
-            hist += h
+        if 'out' in locals():
+            out = vstack([out,mock_sources])
         else:
-            hist = h
+            out = mock_sources
 
         del peak_tbl
         j+= 1
 
     #----------------------------------------------------------------
-    
-    #----------------------------------------------------------------
     # create the histogram
     #----------------------------------------------------------------
-    fig, ax = plt.subplots(figsize=(single_column,single_column/1.618))
-    ax.axhline(80,color='black')
-    ax.bar(apparent_magnitude,hist/stars_per_mag*100/iterations,width=0.4,color=tab10[0])
     
-    
-    ax.set(xlabel='m$_{[\mathrm{OIII}]}$',
-           ylabel='detected sources in %',
-           ylim=[0,100])
-    plt.savefig(basedir / 'reports' / self.name / f'{self.name}_completness.pdf')
-    plt.show()
+    filename = basedir / 'reports' / self.name / f'{self.name}_completness.pdf'
+    plot_completeness_limit(out,max_sep=max_sep,limit=limit,filename=filename)
+
     #----------------------------------------------------------------
 
-    for col in mock_sources.colnames:
-        mock_sources[col].info.format = '%.8g' 
+    for col in out.colnames:
+        out[col].info.format = '%.8g' 
 
-    return mock_sources
-
+    return out
 
 
 def guess_coordinate_column(columns,c1='x',c2='y'):

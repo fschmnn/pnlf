@@ -261,7 +261,7 @@ class MaximumLikelihood1D:
         self.plus  = self.x_arr[self.high]-self.x
         self.minus = self.x-self.x_arr[self.low]
 
-        logger.info(f'{self.x:.3f}+{self.plus:.3f}-{self.minus:.3f}')
+        #logger.info(f'{self.x:.3f}+{self.plus:.3f}-{self.minus:.3f}')
 
         return self.x,self.plus,self.minus
 
@@ -469,7 +469,7 @@ def N25(mu,completeness,data,deltaM):
 from scipy.optimize import minimize
 
 
-def estimate_uncertainties_from_SII(tbl,catalogue=False,plot=False):
+def estimate_uncertainties_from_SII(tbl,plot=False):
     '''
     The uncertainties in the PHANGS-MUSE DAP products are somewhat underestimated. 
     To get a better handle on the errors, we use that the SII6716/SII6730 ratio
@@ -481,7 +481,7 @@ def estimate_uncertainties_from_SII(tbl,catalogue=False,plot=False):
     to use Francescos catalogue instead:
 
     ```
-    with fits.open(data_raw/'..'/'DR1' /'AUXILIARY'/'Nebulae catalogue' / 'Nebulae_Catalogue.fits') as hdul:
+    with fits.open(data_ext/'MUSE_DR2'/'Nebulae catalogue' / 'Nebulae_Catalogue_DR2_native.fits') as hdul:
         nebulae = Table(hdul[1].data)
     nebulae['gal_name'][nebulae['gal_name']=='NGC628'] = 'NGC0628'
     nebulae = nebulae[(nebulae["flag_edge"] == 0) & (nebulae["flag_star"] == 0) & (nebulae["BPT_NII"] == 0) & (nebulae["BPT_SII"] == 0) & (nebulae["BPT_OI"] == 0) & (nebulae['HA6562_SIGMA'] < 100)]
@@ -491,7 +491,19 @@ def estimate_uncertainties_from_SII(tbl,catalogue=False,plot=False):
 
     '''
 
+    if tbl is None:
+        from astropy.io import fits 
+
+        with fits.open(Path('a:') /'MUSE_DR2' /'Nebulae catalogue' / 'Nebulae_Catalogue_DR2_native.fits') as hdul:
+            tbl = Table(hdul[1].data)
+        tbl['gal_name'][tbl['gal_name']=='NGC628'] = 'NGC0628'
+        tbl = tbl[(tbl["flag_edge"] == 0) & (tbl["flag_star"] == 0) & (tbl["BPT_NII"] == 0) & (tbl["BPT_SII"] == 0) & (tbl["BPT_OI"] == 0) & (tbl['HA6562_SIGMA'] < 100)]
+        tbl.rename_columns(['SII6730_FLUX','SII6730_FLUX_ERR','SII6716_FLUX','SII6716_FLUX_ERR'],['SII6730','SII6730_err','SII6716','SII6716_err'])
+        tbl['type'] = 'HII'
+
     tmp = tbl[(tbl['type']=='HII') & (tbl['SII6730']>0) &  (tbl['SII6716']>0)]
+    logger.info(f'sample contains {len(tmp)} nebulae')
+    
     ratio =  tmp['SII6716'] / tmp['SII6730']
     ratio_err =  ratio * np.sqrt((tmp['SII6716_err']/tmp['SII6716'])**2+(tmp['SII6730_err']/tmp['SII6730'])**2)
     diff_norm = (ratio-1.4484) / ratio_err
@@ -516,6 +528,6 @@ def estimate_uncertainties_from_SII(tbl,catalogue=False,plot=False):
         ax.set(xlabel="Deviation / Error",ylabel="Number of regions",yscale='log',ylim=[1,1.5*hist[0]])
         plt.show()
     
-    logger.info(f'std={std:.2f}')
+    logger.info(f'std={std:.3f}')
     return std
 

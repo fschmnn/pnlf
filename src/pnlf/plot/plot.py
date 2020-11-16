@@ -19,24 +19,8 @@ from photutils import CircularAperture         # define circular aperture
 
 from ..constants import single_column, two_column
 from ..analyse import PNLF
+from .utils import create_RGB
 
-def figsize(scale=1):
-    '''Create nicely proportioned figure
-
-    This function calculates the optimal figuresize for any given scale
-    (the ratio between figuresize and textwidth. A figure with scale 1
-    covers the entire writing area). Therefor it is important to know 
-    the textwidth of your target document. This can be obtained by using
-    the command "\the\textwidth" somewhere inside your document.
-    '''
-
-    # for one column: 504.0p
-    width_pt  = 240                           # textwidth from latex
-    in_per_pt = 1.0/72.27                     # Convert pt to inch
-    golden    = 1.61803398875                 # Aesthetic ratio 
-    width  = width_pt * in_per_pt * scale     # width in inches
-    height = width / golden                   # height in inches
-    return [width,height]
 
 def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
     '''plot line map with detected sources
@@ -306,7 +290,9 @@ def cutout_with_profile(self,table,size=32,diagnostics=False,filename=None):
         text = f'{row["type"]}: {row["id"]}'
         t = ax1.text(0.05,0.9,text, transform=ax1.transAxes,color='black',fontsize=8)
         t.set_bbox(dict(facecolor='white', alpha=1, ec='white'))
-        
+        t = ax1.text(0.05,0.8,f'mOIII={row["mOIII"]:.1f}', transform=ax1.transAxes,color='black',fontsize=8)
+        t.set_bbox(dict(facecolor='white', alpha=1, ec='white'))
+
     for i in range(nrows*ncols-len(table)):
 
         # remove the empty axes at the bottom
@@ -322,81 +308,7 @@ def cutout_with_profile(self,table,size=32,diagnostics=False,filename=None):
 
 from astropy.visualization import AsymmetricPercentileInterval
 
-def create_RGB(r,g,b,stretch='linear',weights=None,percentile=95):
-    '''combie three arrays to one RGB image
-    
-    Parameters
-    ----------
-    r : ndarray
-        (n,m) array that is used for the red channel
-        
-    g : ndarray
-        (n,m) array that is used for the green channel
-        
-    b : ndarray
-        (n,m) array that is used for the blue channel
-    
-    percentile : float
-        percentile that is used for the normalization
-        
-    Returns
-    -------
-    rgb : ndarray
-        (n,m,3) array that is normalized to 1
-    '''
 
-    if not r.shape == g.shape == b.shape:
-        raise ValueError('input arrays must have the dimensions')
-    
-    # create an empty array with the correct size
-    rgb = np.empty((*r.shape,3))
-    
-    if type(percentile)==float or type(percentile)==int:
-        percentile = 3*[percentile]
-
-    # assign the input arrays to the 3 channels and normalize them to 1
-    rgb[...,0] = r / np.nanpercentile(r,percentile[0])
-    rgb[...,1] = g / np.nanpercentile(g,percentile[1])
-    rgb[...,2] = b / np.nanpercentile(b,percentile[2])
-
-    if weights:
-        rgb[...,0] *= weights[0]
-        rgb[...,1] *= weights[1]
-        rgb[...,2] *= weights[2]
-
-    #rgb /= np.nanpercentile(rgb,percentile)
-    
-    # clip values (we use percentile for the normalization) and fill nan
-    rgb = np.clip(np.nan_to_num(rgb,nan=1),a_min=0,a_max=1)
-    
-    return rgb
     
 
-def quick_plot(data,wcs=None,cmap=plt.cm.hot,filename=None,**kwargs):
-    '''create a quick plot 
 
-    uses norm     
-    '''
-    
-    fig = plt.figure(figsize=(two_column,two_column))
-    
-    if isinstance(data,astropy.nddata.nddata.NDData):
-        ax = fig.add_subplot(projection=data.wcs)
-        img = data.data
-    elif wcs:
-        ax = fig.add_subplot(projection=wcs)
-        img = data
-    else:
-        ax = fig.add_subplot()
-        img = data
-        
-    norm = simple_norm(img,clip=False,percent=99)
-    ax.imshow(img,norm=norm,cmap=cmap)
-    ax.set(**kwargs)
-    
-    if filename:
-        plt.savefig(filename,dpi=600)
-    
-    #plt.show()
-
-    return ax
