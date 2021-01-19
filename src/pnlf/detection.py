@@ -216,7 +216,7 @@ def plot_completeness_limit(mock_sources,max_sep,limit,filename=None):
             hist.append(np.sum(tmp['sep']<max_sep)/len(tmp))
         else:
             hist.append(0)
-        print(f'{center}: {len(tmp)} objects')
+        #print(f'{center}: {len(tmp)} objects')
     hist = np.array(hist)
     
     completeness_limit = np.max(bins[hist>=limit])
@@ -237,7 +237,8 @@ def plot_completeness_limit(mock_sources,max_sep,limit,filename=None):
     ax.set(xlabel='m$_{[\mathrm{OIII}]}$',
            ylabel='percentage of recovered objects',
            ylim=[0,100])
-    ax.set_title(f'completeness limit = {completeness_limit} (above {limit*100:.0f}\%)')
+    #ax.set_xticks(bins)
+    #ax.set_title(f'completeness limit = {completeness_limit} (above {limit*100:.0f}\%)')
     
     if filename:
         plt.savefig(filename)

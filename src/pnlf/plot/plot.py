@@ -211,7 +211,7 @@ def cutout_with_profile(self,table,size=32,diagnostics=False,filename=None):
     fig, axes = plt.subplots(nrows=nrows,ncols=ncols,figsize=(width,width/ncols*nrows))
     axes_iter = iter(axes.flatten())
     
-    print(f'plotting RGB+profile for {len(table)} objects')
+    #print(f'{filename.stem.split("_")[0]}: plotting RGB+profile for {len(table)} objects')
 
     for row in table:
         
@@ -278,13 +278,18 @@ def cutout_with_profile(self,table,size=32,diagnostics=False,filename=None):
             if not row['HA6562_detection'] or not row['SII_detection']:
                 ax4.errorbar(0.03+np.log10(row['HA6562']/row['SII']),np.log10(row['HA6562']/row['NII6583']),
                             marker=r'$\!\rightarrow$',ms=4,mec='black',ls='none') 
-            ax4.set(xlim=[-0.5,1.5],ylim=[-0.5,1.5])
+            #ax4.set(xlim=[-0.5,1.5],ylim=[-0.5,1.5])
             ax4.set_yticks([])
             ax4.set_xticks([])
 
-        if row['exclude'] or row['overluminous']:
+        if row['exclude']:
             for loc in ['bottom','top','right','left']:
                 ax1.spines[loc].set_color('tab:orange')
+                ax1.spines[loc].set_linewidth(3)
+
+        if  row['overluminous']:
+            for loc in ['bottom','top','right','left']:
+                ax1.spines[loc].set_color('tab:red')
                 ax1.spines[loc].set_linewidth(3)
 
         text = f'{row["type"]}: {row["id"]}'

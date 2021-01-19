@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 from ..constants import tab10, single_column, two_column
 
-def _plot_pnlf(data,mu,completeness,binsize=0.4,mlow=None,mhigh=None,Mmax=-4.47,color=tab10[0],alpha=1,ax=None):
+def _plot_pnlf(data,mu,completeness,binsize=0.4,mlow=None,mhigh=None,Mmax=-4.47,color=tab10[0],alpha=1,ax=None,ms=6):
     '''Plot PNLF
 
     this function plots a minimalistic PNLF (without labels etc.)
@@ -57,10 +57,10 @@ def _plot_pnlf(data,mu,completeness,binsize=0.4,mlow=None,mhigh=None,Mmax=-4.47,
 
     # scatter plot
     ax.errorbar(m[m<completeness],hist[m<completeness],yerr=err[m<completeness],
-                 marker='o',ms=6,mec=color,mfc=color,ls='none',ecolor=color,alpha=alpha,label=r'$m_\mathrm{[OIII]}<$completeness limit')
+                 marker='o',ms=ms,mec=color,mfc=color,ls='none',ecolor=color,alpha=alpha,label=r'$m_\mathrm{[OIII]}<$completeness limit')
     ax.errorbar(m[m>=completeness],hist[m>=completeness],yerr=err[m>completeness],
-                 marker='o',ms=6,mec=color,mfc='white',ls='none',ecolor=color,alpha=alpha,label=r'$m_\mathrm{[OIII]}>$completeness limit')
-    ax.plot(m_fine,binsize/binsize_fine*N*PNLF(bins_fine,mu=mu,mhigh=completeness),c='black',ls='dotted')
+                 marker='o',ms=ms,mec=color,mfc='white',ls='none',ecolor=color,alpha=alpha,label=r'$m_\mathrm{[OIII]}>$completeness limit')
+    ax.plot(m_fine,binsize/binsize_fine*N*PNLF(bins_fine,mu=mu,mhigh=completeness),c='black',ls='dotted',label='fit')
 
     ax.set_yscale('log')
     ax.set_xlim([1.1*mlow-0.1*mhigh,mhigh])
@@ -112,15 +112,15 @@ def _plot_cum_pnlf(data,mu,completeness=None,binsize=None,mlow=None,mhigh=None,M
 
     # old version with binned cdf
     #ax.plot(m_fine,N*np.cumsum(PNLF(bins_fine,mu=mu,mhigh=completeness)),ls='dotted',color=color)
-    ax.plot(data[data<completeness],N*cdf(data[data<completeness],mu,completeness),ls='--',color='k')
+    ax.plot(data[data<completeness],N*cdf(data[data<completeness],mu,completeness),ls=':',color='k')
 
     if binsize:
         bins = np.arange(mlow,mhigh,binsize)
         m = (bins[1:]+bins[:-1]) /2
         hist,_ = np.histogram(data,bins,density=False)
-        ax.plot(m[m<completeness],np.cumsum(hist[m<completeness]),ls='none',mfc=color,mec=color,ms=2,marker='o')
+        ax.plot(m[m<completeness],np.cumsum(hist[m<completeness]),ls='none',mfc=color,mec=color,ms=2,marker='o',label='data')
     else:
-        ax.plot(data[data<completeness],np.arange(1,N+1,1),ls='none',mfc=color,mec=color,ms=1,marker='o',alpha=alpha)
+        ax.plot(data[data<completeness],np.arange(1,N+1,1),ls='none',mfc=color,mec=color,ms=1,marker='o',alpha=alpha,label='data')
 
 
 
@@ -349,6 +349,7 @@ importance = [
 'SNIa',
 'SNII',
 'NAM',
+'Group',
 'TF',  
 'TE',
 'BS',
@@ -370,6 +371,7 @@ colors = {
 'DS':'#76b7b2',
 'IRAS':'#ff9da7',
 'NAM' : '#edc949',
+'Group' : '#edc949',
 'PNLF':'#e15759',
 'RD':'#bab0ac',
 'SNII':'#4e79a7',

@@ -1,6 +1,7 @@
 import errno              # handle errors
 import logging            # log errors
 import os
+import sys
 from pathlib import Path  # filesystem related stuff
 
 import numpy as np

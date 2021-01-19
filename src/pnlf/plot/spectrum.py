@@ -10,6 +10,7 @@ import numpy as np
 
 from astropy.nddata import Cutout2D
 from photutils import CircularAperture
+import astropy.units as u
 
 from ..constants import two_column,tab10
 from ..auxiliary import annulus_mask, circular_mask
@@ -111,7 +112,7 @@ def cutout_spectrum(position,img,data_cube,wcs,title=None,filename=None):
 
 
 
-def spectrum_and_rgb(position,galaxy,data_cube,wcs,aperture_size,title=None,filename=None,xlim=[4750,7000]):
+def spectrum_and_rgb(position,galaxy,data_cube,wcs,aperture_size,title=None,style='OIII',filename=None,xlim=[4750,7000]):
     '''Plot one spectra of a MUSE data cube with Image
     
     Parameters
@@ -148,12 +149,17 @@ def spectrum_and_rgb(position,galaxy,data_cube,wcs,aperture_size,title=None,file
     ax1 = fig.add_subplot(gs[0],projection=wcs)
 
     size = 40
-    r = Cutout2D(galaxy.HA6562, (x,y), size,wcs=galaxy.wcs)
-    g = Cutout2D(galaxy.OIII5006, (x,y), size,wcs=galaxy.wcs)
-    b = Cutout2D(galaxy.SII6716, (x,y), size,wcs=galaxy.wcs)
+    if style == 'rgb':
+        r = Cutout2D(galaxy.HA6562, (x,y), u.Quantity((size, size), u.pixel),wcs=galaxy.wcs)
+        g = Cutout2D(galaxy.OIII5006, (x,y), u.Quantity((size, size), u.pixel),wcs=galaxy.wcs)
+        b = Cutout2D(galaxy.SII6716, (x,y), u.Quantity((size, size), u.pixel),wcs=galaxy.wcs)
 
-    rgb = create_RGB(r.data,g.data,b.data,weights=[0.9,0.9,0.9],percentile=[97,97,97])
-    ax1.imshow(rgb)
+        rgb = create_RGB(r.data,g.data,b.data,weights=[0.9,0.9,0.9],percentile=[97,97,97])
+        ax1.imshow(rgb)
+    else:
+        r = Cutout2D(galaxy.OIII5006, (x,y), u.Quantity((size, size), u.pixel),wcs=galaxy.wcs)
+        norm = simple_norm(r.data,'linear',clip=False,percent=95)
+        ax1.imshow(r.data, origin='lower',norm=norm,cmap='Greys')
 
     radius = aperture_size * galaxy.PSF[int(y),int(x)] / 2
     aperture = CircularAperture(r.input_position_cutout,radius)

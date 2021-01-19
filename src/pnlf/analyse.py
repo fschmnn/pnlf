@@ -80,7 +80,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     table['SII_err'] = np.sqrt(table['SII6716_err']**2+table['SII6730_err']**2)
 
     # we set negative fluxes to the error (0 would cause because we work with ratios)
-    for col in ['OIII5006','HA6562','NII6583','SII']:
+    for col in ['HB4861','OIII5006','HA6562','NII6583','SII']:
         # median of error maps is a factor of 3 smaller than std of maps
         detection = (table[col]>0) & (table[col]>9*table[f'{col}_err'])
         #logger.info(f'{np.sum(~detection)} not detected in {col}')
@@ -112,10 +112,15 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     criteria = {}
 
     if True:
+        # this ignores the uncertainties
         #criteria['HII'] = (10**(table['R']) < 1.6)
         criteria[''] = (4 < (table['R'])) #& (table['HA6562_detection'])
         criteria['HII'] = (table['R'] < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'] | table['NII6583_detection'])
+    elif True:
+        # use HB as a criteria (because this line is close to OIII, extinction should not be an issue)
+        criteria['HII'] = (np.log10(table['OIII5006'] / table['HB4861']) < -0.37*table['MOIII'] - 0.71) & table['HB4861_detection'] 
     else:
+        # here we retain things in the sample if they are within 3 sigma
         criteria[''] = (4 < (table['R']- 3*table['dR'])) #& (table['HA6562_detection'])
         criteria['HII'] = (table['R'] + 3*table['dR'] < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'] | table['NII6583_detection'])
 

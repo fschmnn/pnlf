@@ -172,14 +172,18 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
             # background from annulus with sigma clipping
             bkg_median = []
+            bkg_median_no_clip = []
             for mask in annulus_masks:
                 # select the pixels inside the annulus and calulate sigma clipped median
                 annulus_data = mask.multiply(data)
                 annulus_data_1d = annulus_data[mask.data > 0]
                 median_sigclip,_ , _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=3,maxiters=3)          
+                bkg_median_no_clip.append(np.nanmedian(annulus_data_1d[~np.isnan(annulus_data_1d)]))          
+
                 bkg_median.append(median_sigclip)
             # save bkg_median in case we need it again
             phot['bkg_median'] = np.array(bkg_median) 
+            phot['bkg_global'] = np.array(bkg_median_no_clip)*aperture.area
             # multiply background with size of the aperture
             phot['bkg_local'] = phot['bkg_median'] * aperture.area
             
