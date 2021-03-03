@@ -164,7 +164,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
 
             # the local background subtraction estimates the background for 
-            # each source individually (annulus with 3 times the area of aperture) 
+            # each source individually (annulus with 5 times the area of aperture) 
             r_in  = 4 * (fwhm-PSF_correction) / 2 
             r_out = np.sqrt(5*r**2+r_in**2)
             annulus_aperture = CircularAnnulus(positions, r_in=r_in, r_out=r_out)

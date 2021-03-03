@@ -85,7 +85,8 @@ def _plot_cum_pnlf(data,mu,completeness=None,binsize=None,mlow=None,mhigh=None,M
         completeness = max(data)+1
     N = len(data[data<completeness])
     if not mlow:
-        mlow = Mmax+mu
+        #mlow = Mmax+mu
+        mlow = np.min(data)-0.1
     if not mhigh:
         mhigh = completeness+2
     
