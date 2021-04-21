@@ -23,29 +23,39 @@ logger = logging.getLogger(__name__)
 
 from ..constants import tab10, single_column, two_column
 
-def _plot_pnlf(data,mu,completeness,binsize=0.4,mlow=None,mhigh=None,Mmax=-4.47,color=tab10[0],alpha=1,ax=None,ms=6):
+def _plot_pnlf(data,mu,completeness,mask=None,binsize=0.4,mlow=None,mhigh=None,Mmax=-4.47,color=tab10[0],alpha=1,ax=None,ms=6):
     '''Plot PNLF
 
     this function plots a minimalistic PNLF (without labels etc.)
     '''
+
+    if mask is None:
+        mask = np.zeros_like(data,dtype=bool)
     
     # the fit is normalized to 1 -> multiply with number of objects
-    N = len(data[data<completeness])
+    N = len(data[data<completeness])-np.sum(mask)
     if not mlow:
         mlow = Mmax+mu
     if not mhigh:
         mhigh = completeness+2
-    
-    hist, bins  = np.histogram(data,np.arange(mlow,mhigh,binsize),normed=False)
+
+    bins = np.arange(mlow,mhigh,binsize)
+    hist, bins  = np.histogram(data[~mask],bins,normed=False)
+
+    # we need to extend the bins
+    bins_OL = np.arange(mlow-binsize*np.ceil((mlow-np.min(data))/binsize),mhigh,binsize)
+    hist_OL, _  = np.histogram(data[mask],bins_OL,normed=False)
+    m_OL = (bins_OL[1:]+bins_OL[:-1]) / 2
+
     err = np.sqrt(hist)
     # midpoint of the bins is used as position for the plots
     m = (bins[1:]+bins[:-1]) / 2
     
     # for the fit line we use a smaller binsize
     binsize_fine = 0.1
-    bins_fine = np.arange(mlow,mhigh,binsize_fine)
+    bins_fine = np.arange(mlow-binsize_fine,mhigh+binsize_fine,binsize_fine)
     m_fine = (bins_fine[1:]+bins_fine[:-1]) /2
-    hist_fine, _ = np.histogram(data,bins_fine,normed=False)
+    #hist_fine, _ = np.histogram(data[~mask],bins_fine,normed=False)
 
     if not ax:
         # create an empty figure
@@ -55,17 +65,27 @@ def _plot_pnlf(data,mu,completeness,binsize=0.4,mlow=None,mhigh=None,Mmax=-4.47,
     else:
         fig = ax.get_figure()
 
+    
     # scatter plot
     ax.errorbar(m[m<completeness],hist[m<completeness],yerr=err[m<completeness],
-                 marker='o',ms=ms,mec=color,mfc=color,ls='none',ecolor=color,alpha=alpha,label=r'$m_\mathrm{[OIII]}<$completeness limit')
+                 marker='o',ms=ms,mec=color,mfc=color,ls='none',ecolor=color,alpha=alpha,label=r'below completeness limit')
     ax.errorbar(m[m>=completeness],hist[m>=completeness],yerr=err[m>completeness],
-                 marker='o',ms=ms,mec=color,mfc='white',ls='none',ecolor=color,alpha=alpha,label=r'$m_\mathrm{[OIII]}>$completeness limit')
+                 marker='o',ms=ms,mec=color,mfc='white',ls='none',ecolor=color,alpha=alpha,label=r'above completeness limit')
+    
+    # for overluminous objects
+    ax.errorbar(m_OL,hist_OL,marker='o',ms=ms,mec='tab:blue',mfc='tab:blue',ls='none',ecolor='tab:blue',alpha=alpha,label=r'overluminous')
+
     ax.plot(m_fine,binsize/binsize_fine*N*PNLF(bins_fine,mu=mu,mhigh=completeness),c='black',ls='dotted',label='fit')
 
     ax.set_yscale('log')
-    ax.set_xlim([1.1*mlow-0.1*mhigh,mhigh])
-    ax.set_ylim([0.8,1.5*np.max(hist)])
-    
+    if np.any(mask):
+        ax.set_xlim([1.1*np.min(m_OL)-0.1*mhigh,mhigh])
+    else:
+        ax.set_xlim([1.1*mlow-0.1*mhigh,mhigh])
+
+    ax.set_ylim([0.6,2*np.max(hist)])
+
+
     ax.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.3g}'.format(y)))
     ax.xaxis.set_major_locator(mpl.ticker.MultipleLocator(1))
     ax.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.25))
@@ -148,7 +168,7 @@ def _plot_cum_pnlf(data,mu,completeness=None,binsize=None,mlow=None,mhigh=None,M
 
     return ax
 
-def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,Mmax=-4.47,
+def plot_pnlf(data,mu,completeness,mask=None,binsize=0.25,mlow=None,mhigh=None,Mmax=-4.47,
               filename=None,color='tab:red',alpha=1,axes=None):
     '''Plot Planetary Nebula Luminosity Function
     
@@ -187,7 +207,7 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,Mmax=-4.47,
         ax1,ax2 = axes 
         fig = ax1.get_figure()
 
-    ax1 = _plot_pnlf(data,mu,completeness,binsize=binsize,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax1)
+    ax1 = _plot_pnlf(data,mu,completeness,mask=mask,binsize=binsize,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax1)
     ax2 = _plot_cum_pnlf(data,mu,completeness,binsize=None,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax2)
 
     ax1.set_xlabel(r'$m_{[\mathrm{OIII}]}$ / mag')
@@ -211,7 +231,7 @@ def plot_pnlf(data,mu,completeness,binsize=0.25,mlow=None,mhigh=None,Mmax=-4.47,
 def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     
     Mmax = -4.47
-    fig, (ax1,ax2,ax3) = plt.subplots(nrows=1,ncols=3,figsize=(two_column,two_column/3.3))
+    fig, (ax1,ax2) = plt.subplots(nrows=2,ncols=1,figsize=(0.9*single_column,single_column*1.8))
     
     style = {'SNR':{"marker":'o',"ms":3,"mfc":'None',"mec":tab10[0],'ls':'none','ecolor':tab10[0]},
              'SNRorPN':{"marker":'o',"ms":4,"mfc":'white',"mec":'tab:green','ls':'none','ecolor':'tab:green'},
@@ -255,7 +275,7 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     ax1.set(xlim=[-5,np.ceil(completeness-mu)-0.7],
            ylim=[0.03,200],
            yscale='log',
-           xlabel=r'$M_{\mathrm{[O\,\textsc{iii}]}}$',
+           xlabel=r'$M_{[\mathrm{O}\,\textsc{iii}]}$',
            ylabel=r'$I_{[\mathrm{O}\,\textsc{iii}]} \; /\;(I_{\mathrm{H}\,\alpha} + I_{\mathrm{[N\,\textsc{ii}]}})$')
     
     ax1.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.16g}'.format(y)))
@@ -272,24 +292,24 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     
     for t in ['HII','SNR','PN']:
         tbl = table[(table['type']==t)] #& (table['HA6562_detection'] | table['HA6562_detection'])]
-        ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII']),np.log10(tbl['HA6562']/tbl['NII6583']),
+        ax2.errorbar(np.log10(tbl['SII']/tbl['HA6562']),np.log10(tbl['NII6583']/tbl['HA6562']),
                      **style[t],label=t)
 
         if t=='PN':
             # indicate for which PN we don't have a detection in HA6562
             tbl = tbl[~tbl['SII_detection'] | ~tbl['HA6562_detection']]
-            ax2.errorbar(0.03+np.log10(tbl['HA6562']/tbl['SII']),np.log10(tbl['HA6562']/tbl['NII6583']),
-                         marker=r'$\!\rightarrow$',ms=4,mec='black',ls='none') 
+            #ax2.errorbar(-0.02+np.log10(tbl['SII']/tbl['HA6562']),np.log10(tbl['NII6583']/tbl['HA6562']),
+            #             marker=r'$\!\leftarrow$',ms=3,mec='black',ls='none') 
         if t=='SNR':
            tbl = tbl[tbl['SNRorPN']] 
-           ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII']),np.log10(tbl['HA6562']/tbl['NII6583']), marker='o',ms=2,mfc=tab10[0],mec=tab10[0],ls='none') 
+           ax2.errorbar(np.log10(tbl['SII']/tbl['HA6562']),np.log10(tbl['NII6583']/tbl['HA6562']), marker='o',ms=2,mfc=tab10[0],mec=tab10[0],ls='none') 
 
     tbl = table[table['overluminous']]
-    ax2.errorbar(np.log10(tbl['HA6562']/tbl['SII']),np.log10(tbl['HA6562']/tbl['NII6583']),marker='o',ms=3,ls='none',color='tab:green') 
+    ax2.errorbar(np.log10(tbl['SII']/tbl['HA6562']),np.log10(tbl['NII6583']/tbl['HA6562']),marker='o',ms=3,ls='none',color='tab:green') 
 
     ax2.legend()
 
-    ax2.axvline(np.log10(2.5),c='black',lw=0.6) 
+    ax2.axvline(-0.3979,c='black',lw=0.6) 
     vert_SNR = np.array([[-0.1,-0.5],[-0.1,0.05],[0.3,0.25],[0.3,0.05],[0.1,-0.05],[0.1,-0.5]])
     #ax2.add_patch(mpl.patches.Polygon(vert_SNR,Fill=False,edgecolor='black'))
     vert_SNR = np.array([[0.5,0.2],[0.5,0.7],[0.9,0.7],[0.9,0.2]])
@@ -297,11 +317,11 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     #ax2.plot([0.1,1.3],[-0.45,0.8],c='black',lw=0.6)
     #ax2.text(-0.1,-0.6,'SNR')
     
-    ax2.set(xlim=[-0.5,1.5],
-           ylim=[-0.2,1],
+    ax2.set(xlim=[-1.5,1],
+           ylim=[-1.5,1],
            #yscale='log',
-           xlabel=r'$\log_{10} (I_{\mathrm{H}\,\alpha} \; /\; I_{[\mathrm{S}\,\textsc{ii}]})$',
-           ylabel=r'$\log_{10} (I_{\mathrm{H}\,\alpha} \; /\; I_{[\mathrm{N}\,\textsc{ii}]})$')    
+           xlabel=r'$\log_{10} (I_{[\mathrm{S}\,\textsc{ii}]} \; /\; I_{\mathrm{H}\,\alpha})$',
+           ylabel=r'$\log_{10} (I_{[\mathrm{N}\,\textsc{ii}]} \; /\; I_{\mathrm{H}\,\alpha})$')    
     ax2.xaxis.set_major_locator(mpl.ticker.MultipleLocator(0.5))
     ax2.yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.5))
     ax2.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.1))
@@ -310,9 +330,9 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     # ------------------------------------------------
     # right plot with velocity dispersion
     # ------------------------------------------------
-
-    bins = np.arange(0,120,10)
-    SN_cut = 9
+    '''
+    bins = np.arange(0,150,10)
+    SN_cut = 3
 
     ax3.hist(table[(table['type']=='PN') & (table['v_SIGMA_S/N']>SN_cut)]['v_SIGMA'],bins=bins,alpha=1,label='PN',color='black')
     ax3.hist(table[(table['type']=='SNR') & (table['v_SIGMA_S/N']>SN_cut)]['v_SIGMA'],bins=bins,alpha=0.7,label='SNR',color=tab10[0])
@@ -320,6 +340,7 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     ax3.set(xlabel=r'$\sigma_V$ / km s$^{-1}$',ylabel='counts')
     #ax3.axvline(100,c='black',lw=0.6) 
     ax3.legend()
+    '''
 
     plt.subplots_adjust(wspace=0.35)
 
@@ -471,7 +492,7 @@ def compare_distances(name,distance,plus,minus,filename=None):
     ref     = []
     names   = []
 
-    for g in distances.group_by('Refcode').groups:
+    for g in distances.group_by(['Refcode','Method']).groups:
         methods.append(Methods.get(g['Method'][0],g['Method'][0]))
         year.append(g['year'][0])
         links.append(g['link'][0])
@@ -510,16 +531,16 @@ def compare_distances(name,distance,plus,minus,filename=None):
         fig = plt.figure(figsize=(single_column,(0.28-0.012*len(distances))*len(distances)),tight_layout=True)
     ax = fig.add_subplot(1,1,1)
 
-    ax.fill_betweenx(np.arange(0,len(distances)+2), distance-minus, distance+plus,facecolor='black', alpha=0.5)
-    ax.fill_betweenx(np.arange(0,len(distances)+2), distance-3*minus, distance+3*plus,facecolor='black', alpha=0.2)
-    ax.axvline(distance,color='black',lw=0.8)
+    ax.fill_betweenx(np.arange(0,len(distances)+2), distance-minus, distance+plus,facecolor='black', alpha=0.5,zorder=1)
+    ax.fill_betweenx(np.arange(0,len(distances)+2), distance-3*minus, distance+3*plus,facecolor='black', alpha=0.2,zorder=1)
+    ax.axvline(distance,color='black',lw=0.8,zorder=1)
 
     method_ticks = []
     method_labels = np.unique(distances['Method'])
     for i,group in enumerate(distances.group_by('Method').groups):
         m = group[0]['Method']
         for row in group:
-            ax.errorbar(row['(m-M)'],row['y'],xerr=row['err(m-M)'],color=colors[m],ls='none',fmt=row['marker'],ms=3)
+            ax.errorbar(row['(m-M)'],row['y'],xerr=row['err(m-M)'],color=colors[m],ls='none',fmt=row['marker'],ms=3,zorder=2)
         method_ticks.append(np.mean(group['y']))
         ax.axhline(np.max(group['y'])+0.5,color='gray',lw=0.5)
 
@@ -560,7 +581,7 @@ def compare_distances(name,distance,plus,minus,filename=None):
        '2017ApJ...834..174K' : 'Kreckel+2017',
        '2008ApJ...683..630H' : 'Herrmann+2008',
        '2002ApJ...577...31C' : 'Ciardullo+2002',
-       '2020+Anand' : 'Anand+2020'
+       '2021MNRAS.501.3621A' : 'Anand+2021'
     }
 
     with open(basedir / 'reports' / 'citealias.tex','r',encoding='utf8') as f:
@@ -580,3 +601,5 @@ def compare_distances(name,distance,plus,minus,filename=None):
         f.write('\n'.join(sorted(citealias)))
 
     plt.show()
+
+    return distances

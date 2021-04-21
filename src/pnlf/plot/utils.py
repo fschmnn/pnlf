@@ -178,3 +178,14 @@ def rainbow_text(x, y, strings, colors, orientation='horizontal',
             t = text.get_transform() + Affine2D().translate(ex.width, 0)
         else:
             t = text.get_transform() + Affine2D().translate(0, ex.height)
+
+
+def radial_profile(data, center):
+    y, x = np.indices((data.shape))
+    r = np.sqrt((x - center[0])**2 + (y - center[1])**2)
+    r = r.astype(np.int)
+
+    tbin = np.bincount(r.ravel(), data.ravel())
+    nr = np.bincount(r.ravel())
+    radialprofile = tbin / nr
+    return radialprofile

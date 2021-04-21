@@ -38,7 +38,7 @@ class ReadLineMaps:
     pointings and thus impacts the resulting point spread function (PSF).
     '''
     
-    def __init__(self,folder,name,extensions=['OIII5006','HA6562','NII6583','SII6716','SII6730'],**kwargs):
+    def __init__(self,folder,name,extensions=['HB4861','OIII5006','HA6562','NII6583','SII6716','SII6730'],**kwargs):
         '''
         Parameters
         ----------

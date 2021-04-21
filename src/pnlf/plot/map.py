@@ -1,3 +1,9 @@
+'''Create plots that include maps 
+
+
+'''
+
+
 from pathlib import Path
 import numpy as np
 
@@ -8,7 +14,16 @@ import matplotlib.pyplot as plt
 from photutils import CircularAperture
 from astropy.visualization import simple_norm
 
+
+import astropy.units as u
+from astropy.visualization import simple_norm
+
+from astropy.nddata import Cutout2D
+from photutils import CircularAperture         # define circular aperture
+
 from ..constants import tab10, single_column, two_column
+from .utils import create_RGB
+
 #tab10 = ['#e15759','#4e79a7','#f28e2b','#76b7b2','#59a14e','#edc949','#b07aa2','#ff9da7','#9c755f','#bab0ac']    
 
 def classification_map(galaxy,parameters,tbl,filename):
@@ -42,7 +57,6 @@ def classification_map(galaxy,parameters,tbl,filename):
     wcs=galaxy.wcs
     # ============================================================
 
-    from pnlf.plot.plot import create_RGB
     #rgb = create_RGB(galaxy.HA6562,galaxy.OIII5006,galaxy.SII6716,percentile=97)
     rgb = create_RGB(galaxy.HA6562,galaxy.OIII5006_DAP,galaxy.SII6716,weights=[0.8,1,0.9],percentile=[97,97,97])
 
@@ -244,3 +258,58 @@ def classification_map_small(galaxy,parameters,tbl,filename):
     ax2.add_artist(con)
 
     plt.savefig(filename,bbox_inches='tight',dpi=900)
+
+
+
+def plot_sky_with_detected_stars(data,wcs,positions,filename=None):
+    '''plot line map with detected sources
+    
+    Parameters
+    ----------
+
+    data : 2d array
+        numpy array that contains the image data
+
+    wcs : 
+        wcs information for the projection
+
+    positions : array or tuple
+        (n,2) shaped array with positions. Can also be a tuple of
+        multiple such arrays.
+
+    filename : Path
+        if given, a PDF of the plot is saved to filename
+    '''
+
+    apertures = []
+    if isinstance(positions,tuple) or isinstance(positions,list):
+        for position in positions:
+            apertures.append(CircularAperture(position, r=8))
+    else:
+        apertures.append(CircularAperture(positions, r=8))
+
+    fig = figure(figsize=(6.974,6.974/2))
+    ax = fig.add_subplot(111, projection=wcs)
+    norm = simple_norm(data,'asinh',clip=False,min_percent=1,max_percent=99.5)
+    cmap = plt.cm.hot
+    cmap.set_bad('w')
+
+    plt.imshow(data, 
+               origin='lower',
+               cmap=cmap, 
+               norm=norm,
+               #interpolation='none',
+               #vmax=vmax
+              )
+
+    for aperture in apertures:
+        aperture.plot(color='blue',lw=.5, alpha=1)
+
+    ax.set_xlabel('RA')
+    ax.set_ylabel('Dec')
+
+    if filename:
+        if not isinstance(filename,Path):
+            filename = Path(filename)
+
+        plt.savefig(filename,dpi=600)

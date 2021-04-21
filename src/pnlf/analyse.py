@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True):
     '''Classify objects based on their emission lines 
     
-    we use three criteria to distinguish between PN, HII regions and SNR:
+    we use four criteria to distinguish between PN, HII regions and SNR:
     
     criteria1 -> emperical upper limit
     4 > log10 [OIII] / (Ha +[NII])
@@ -31,6 +31,8 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     criteria3 -> SNR
     Ha / [SII] < 2.5
     
+    criteria4 -> velocity dispersion
+
     The second criteria requires the absolute magnitude of the objects. 
     Therefor the distance_modulus
     
