@@ -33,9 +33,6 @@ def figsize(scale=1):
 
 import matplotlib as mpl
 
-# fancy plots only if called from this file (slow)
-if final:
-    mpl.use('pgf')
 
 import matplotlib.pyplot as plt
 

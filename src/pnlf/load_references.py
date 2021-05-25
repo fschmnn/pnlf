@@ -5,6 +5,7 @@ import numpy as np
 from astropy.io import ascii 
 from astropy.coordinates import SkyCoord
 from astropy.table import vstack, MaskedColumn
+import astropy.units as u
 
 from .auxiliary import search_table, Distance
 
@@ -65,6 +66,8 @@ snr_NGC628_kreckel['R'] = snr_NGC628_kreckel['OIII/Ha']/ (1+snr_NGC628_kreckel['
 snr_NGC628_kreckel['dR'] = MaskedColumn(np.zeros(len(snr_NGC628_kreckel)),mask=len(snr_NGC628_kreckel)*[True])
 snr_NGC628_kreckel['ID'] = snr_NGC628_kreckel['ID'].astype('str')
 
+pn_NGC628_kreckel['type'] = 'PN'
+snr_NGC628_kreckel['type'] = 'SNR'
 NGC628_kreckel = vstack([pn_NGC628_kreckel,snr_NGC628_kreckel])
 
 # Herrmann+2008
@@ -133,3 +136,49 @@ pn_NGC3627_ciardullo.meta['bibcode'] = '2002ApJ...577...31C'
 
 snr_NGC0628_sonbas = ascii.read(basedir / 'data' / 'external' / 'Sonbas_snr_NGC0628.txt',format='csv',delimiter=' ',data_start=1)
 snr_NGC0628_sonbas['SkyCoord'] = SkyCoord(snr_NGC0628_sonbas['RA'],snr_NGC0628_sonbas['Dec'])
+
+
+# Roth+2021
+
+pn_NGC0628_roth = ascii.read(basedir/'data'/'external'/'roth+2021_pn_candidates.txt')
+
+pn_NGC0628_roth.rename_column('err','dmOIII')
+pn_NGC0628_roth['RA'] = list(map(string_to_ra,pn_NGC0628_roth['RA']))
+pn_NGC0628_roth['DEC'] = list(map(string_to_dec,pn_NGC0628_roth['DEC']))
+pn_NGC0628_roth['SkyCoord'] = SkyCoord(pn_NGC0628_roth['RA'],pn_NGC0628_roth['DEC'])
+pn_NGC0628_roth['pointing'] = [x.split('-')[0] for x in pn_NGC0628_roth['ID']]
+pn_NGC0628_roth.add_index('No')
+
+offset = {'P1': (1.4871026828755427, 1.5842446858756842),
+ 'P2': (1.3007895927116229, 4.258799715932929),
+ 'P3b': (1.0871248490453884, 3.6859363973201997),
+ 'P4': (1.1710318786060663, 4.290050872730859),
+ 'P5': (0.7821342597616665, 3.067700721973635),
+ 'P6': (1.6090193254676588, 1.9130460388224684),
+ 'P7': (2.0721813367113606, 1.9567185746199387),
+ 'P8': (1.2715106777584466, 4.308244511807938),
+ 'P9': (0.876431069592869, 3.639543854448167),
+ 'P12': (1.3801150958283392, 4.310376779358592),
+ 'K1': (0.2384843703710526, 2.5655582941153243),
+ 'K2': (0.49506048394801855, 2.0769182209339583)}
+
+pn_NGC0628_roth['SkyCoord_offset'] = pn_NGC0628_roth['SkyCoord']
+for k,v in offset.items():
+    pn_NGC0628_roth['SkyCoord'][pn_NGC0628_roth['pointing']==k] = pn_NGC0628_roth['SkyCoord'][pn_NGC0628_roth['pointing']==k].directional_offset_by(v[1]*u.rad, v[0]*u.arcsec)  
+
+# this dict was originally used to calculate the offsets
+matches = {
+    'P1': ('PN27',947),
+    'P2': ('PN5',1968),
+    'P3b': ('PN9',1025),
+    'P4': ('PN15',2024), # really bad
+    'P5': ('PN39',1524),
+    'P6': ('PN7',1968),
+    'P7': ('PN1',56),
+    'P8': ('PN23',557),
+    'P9': ('PN25',752),
+    'P12': ('PN41',1322),
+    'K1': ('PN17',1755),
+    'K2': ('PN12',1291),
+}
+

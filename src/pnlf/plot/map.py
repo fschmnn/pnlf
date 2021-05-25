@@ -58,7 +58,7 @@ def classification_map(galaxy,parameters,tbl,filename):
     # ============================================================
 
     #rgb = create_RGB(galaxy.HA6562,galaxy.OIII5006,galaxy.SII6716,percentile=97)
-    rgb = create_RGB(galaxy.HA6562,galaxy.OIII5006_DAP,galaxy.SII6716,weights=[0.8,1,0.9],percentile=[97,97,97])
+    rgb = create_RGB(galaxy.HA6562,galaxy.OIII5006_DAP,galaxy.SII6716,weights=[0.8,1,0.9],percentile=[98,99,98])
 
     table = tbl
     #table = tbl[tbl['mOIII']<galaxy.completeness_limit]
@@ -100,7 +100,7 @@ def classification_map(galaxy,parameters,tbl,filename):
     
     # first we create a legend with three invisible handles
     labels=['HA6562','OIII5006','SII6716']
-    labels=[r'Halpha',r'[OIII]',r'[SII]']
+    labels=[r'H$\alpha$',r'$[\mathrm{O}\,\textsc{iii}]$',r'$[\mathrm{S}\,\textsc{ii}]$']
     handles = 3*[mpl.patches.Rectangle((0, 0), 0, 0, alpha=0.0)]
     leg = ax3.legend(handles,labels, frameon=True,framealpha=0.7,handlelength=0,prop={'size': 6},loc=3)
 
@@ -114,11 +114,11 @@ def classification_map(galaxy,parameters,tbl,filename):
     ax3.set_xlim([x,x+width])
     ax3.set_ylim([y,y+height])
 
-    ax1.set(title=r'O[III]',
+    ax1.set(title=r'$[\mathrm{O}\,\textsc{iii}]$',
             xlabel='R.A. (J2000)',
             ylabel='Dec. (J2000)')
 
-    ax2.set(title=r'Halpha',
+    ax2.set(title=r'H$\alpha$',
             xlabel='R.A. (J2000)')
             
     ax3.set_xticks([])
@@ -145,7 +145,7 @@ def classification_map(galaxy,parameters,tbl,filename):
                                       coordsA="axes fraction", coordsB="axes fraction",
                                       axesA=ax2, axesB=ax3, color="black",linewidth=0.3)
     ax3.add_artist(con)
-
+    plt.subplots_adjust(wspace=0.06)
     plt.savefig(filename,bbox_inches='tight',dpi=600)
 
 

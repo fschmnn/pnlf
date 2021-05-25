@@ -129,7 +129,7 @@ class ReadLineMaps:
             logger.warn(f'"{self.name}_oiii_flux.fits" does not exists.')
 
         # star mask
-        star_mask_file = folder.parent / 'AUXILIARY' / 'starmasks_v01' / f'{self.name}_starmask.fits'
+        star_mask_file = folder.parent / 'AUXILIARY' / 'starmasks' / f'{self.name}_starmask.fits'
         seeing_map_file = folder.parent / 'AUXILIARY' / 'seeing_maps' / f'{self.name}_seeing.fits'
         av_file = folder.parent  / 'AUXILIARY' / 'AVmaps' / f'{self.name}_AV.fits'
 

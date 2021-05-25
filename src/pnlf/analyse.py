@@ -126,7 +126,6 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
         criteria[''] = (4 < (table['R']- 3*table['dR'])) #& (table['HA6562_detection'])
         criteria['HII'] = (table['R'] + 3*table['dR'] < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'] | table['NII6583_detection'])
 
-
     criteria['SNR'] = ((table['HA6562']) /table['SII'] < 2.5) & (table['SII_detection']) 
     # only apply this criteria if signal to noise is < 3
     # we underestimate the error and hence S/N is too big. This justifies using 3 instead of 1
@@ -281,7 +280,7 @@ class MaximumLikelihood1D:
 
         if not hasattr(self,'x'):
             logger.warning('run fit function first. I do it for you this time.')
-            x,dp,dm=self.fit(24)
+            x,dp,dm=self.fit(28        )
         else:
             x,dp,dm = self.x,self.plus,self.minus
         

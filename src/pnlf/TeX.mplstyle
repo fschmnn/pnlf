@@ -78,7 +78,7 @@ axes.labelcolor:  black
 # axes and ticks
 # ---------------------------------------------------------------------
 
-axes.linewidth: 0.5
+axes.linewidth: 0.6
 axes.grid:      False
 axes.axisbelow: True      
 
