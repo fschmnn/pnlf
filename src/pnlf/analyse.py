@@ -59,7 +59,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     '''
     
     # we check if all columns exist
-    required = ['OIII5006','HA6562','NII6583','SII6716','mOIII']
+    required = ['HB4861','OIII5006','HA6562','NII6583','SII6716','SII6730','mOIII']
     missing = set(required) - set(table.columns)
     if missing:
         raise KeyError(f'input table is missing {", ".join(missing)}')
@@ -247,6 +247,7 @@ class MaximumLikelihood1D:
         #    print(f'{name} = {_x:.3f} + {_dx[1]:.3f} - {_dx[0]:.3f} ')
         size = 0.5
         self.x_arr = np.linspace(self.x-size,self.x+size,1000)
+        # evidence and likelihood are in log 
         self.evidence_arr   = np.exp([self.evidence(_) for _ in self.x_arr])
         self.prior_arr      = np.array([self.prior(_) for _ in self.x_arr])
         self.likelihood_arr = np.exp([-self.likelihood(_) for _ in self.x_arr])

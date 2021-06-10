@@ -247,7 +247,7 @@ def plot_distances(distance,plus,minus,distances,filename=None):
     ax3 = ax.twiny()
     ax3.set(xlim=[Distance(distmod=xmin).to(u.Mpc).value,Distance(distmod=xmax).to(u.Mpc).value],
             xscale='log')
-    ax3.set_xlabel(r'$D$ / Mpc',labelpad=2)
+    ax3.set_xlabel(r'distance / Mpc',labelpad=2)
     ax3.xaxis.set_major_locator(mpl.ticker.LogLocator(base=10,subs='all'))
     ax3.xaxis.set_major_formatter(mpl.ticker.LogFormatter(minor_thresholds=(2, 0.5)))
     ax3.tick_params(axis='x',zorder=0)
@@ -280,6 +280,7 @@ def plot_distances(distance,plus,minus,distances,filename=None):
     #    \citetalias{bibkey} 
     # some papers are cited in the body and hence have a different key
     existing_keys = {
+       '2021arXiv210501982R' : 'Roth+2021',
        '2017ApJ...834..174K' : 'Kreckel+2017',
        '2008ApJ...683..630H' : 'Herrmann+2008',
        '2002ApJ...577...31C' : 'Ciardullo+2002',

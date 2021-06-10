@@ -41,6 +41,7 @@ pn_NGC628_kreckel['DEC'] = list(map(string_to_dec,pn_NGC628_kreckel['DEC']))
 pn_NGC628_kreckel.meta['reference'] = 'Kreckel+2017'
 pn_NGC628_kreckel.meta['bibcode'] = '2017ApJ...834..174K'
 
+pn_NGC628_kreckel['OIII'] = 10**((pn_NGC628_kreckel['mOIII']+13.74)/-2.5)
 pn_NGC628_kreckel['Ha/NII'][pn_NGC628_kreckel['Ha/NII']=='L'] = '1e-30'
 pn_NGC628_kreckel['Ha/SII'][pn_NGC628_kreckel['Ha/SII']=='L'] = '1e-30'
 pn_NGC628_kreckel['OIII/Ha'] = [float(x.replace('>','')) for x in pn_NGC628_kreckel['OIII/Ha']]
@@ -57,6 +58,7 @@ snr_NGC628_kreckel['DEC'] = list(map(string_to_dec,snr_NGC628_kreckel['DEC']))
 snr_NGC628_kreckel.meta['reference'] = 'Kreckel+2017'
 snr_NGC628_kreckel.meta['bibcode'] = '2017ApJ...834..174K'
 
+snr_NGC628_kreckel['OIII'] = 10**((snr_NGC628_kreckel['mOIII']+13.74)/-2.5)
 snr_NGC628_kreckel['Ha/NII'][snr_NGC628_kreckel['Ha/NII']=='L'] = '1e-30'
 snr_NGC628_kreckel['Ha/SII'][snr_NGC628_kreckel['Ha/SII']=='L'] = '1e-30'
 snr_NGC628_kreckel['OIII/Ha'] = [float(x.replace('>','')) for x in snr_NGC628_kreckel['OIII/Ha']]
@@ -88,6 +90,7 @@ pn_NGC628_herrmann.meta['reference'] = 'Herrmann+2008'
 pn_NGC628_herrmann.meta['bibcode'] = '2008ApJ...683..630H'
 pn_NGC628_herrmann.rename_column('m5007','mOIII')
 pn_NGC628_herrmann.rename_column('e_R','dR')
+pn_NGC628_herrmann['OIII'] = 10**((pn_NGC628_herrmann['mOIII']+13.74)/-2.5)
 
 # combine all tables for NGC628
 pn_NGC628_kreckel['source'] = 'Kreckel PN' 
@@ -148,6 +151,7 @@ pn_NGC0628_roth['DEC'] = list(map(string_to_dec,pn_NGC0628_roth['DEC']))
 pn_NGC0628_roth['SkyCoord'] = SkyCoord(pn_NGC0628_roth['RA'],pn_NGC0628_roth['DEC'])
 pn_NGC0628_roth['pointing'] = [x.split('-')[0] for x in pn_NGC0628_roth['ID']]
 pn_NGC0628_roth.add_index('No')
+pn_NGC0628_roth['OIII'] = 10**((pn_NGC0628_roth['mOIII']+13.74)/-2.5)
 
 offset = {'P1': (1.4871026828755427, 1.5842446858756842),
  'P2': (1.3007895927116229, 4.258799715932929),

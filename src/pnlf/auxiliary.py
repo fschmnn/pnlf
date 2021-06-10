@@ -348,3 +348,36 @@ def resolution_from_wcs(wcs):
     dy = coords[0].separation(coords[1]) / shape[1]
     
     return (round(dx.to(u.arcsecond).value,3),round(dy.to(u.arcsecond).value,3))
+
+
+def sample_numerical(x,y,N=100,plot=False):
+    '''sample from a PDF given by two arrays
+
+    '''
+
+    xmin,xmax = np.min(x),np.max(x)
+    ymin,ymax = np.min(y),np.max(y)
+
+    sample = []
+    
+    while len(sample)<N:
+        
+        x0 = np.random.uniform(xmin,xmax)
+        y0 = np.interp(x0,x,y)
+        yref = np.random.uniform(ymin,ymax)
+        
+        if y0>yref:
+            sample.append(x0)
+    sample = np.array(sample)
+    
+    if plot:
+        fig,ax=plt.subplots()
+        ax.hist(sample,bins=np.arange(xmin,xmax,0.01),density=True)
+        ax.plot(x,y,color='black')
+        plt.show()
+    
+    return sample
+
+
+    
+    
