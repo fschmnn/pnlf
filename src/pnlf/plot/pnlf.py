@@ -68,9 +68,9 @@ def _plot_pnlf(data,mu,completeness,mask=None,binsize=0.4,mlow=None,mhigh=None,M
     
     # scatter plot
     ax.errorbar(m[m<completeness],hist[m<completeness],yerr=err[m<completeness],xerr=binsize/2,
-                 marker='o',ms=ms,mec=color,mfc=color,ls='none',ecolor=color,alpha=alpha,label=r'below completeness limit')
+                 marker='o',ms=ms,mec=color,mfc=color,ls='none',ecolor=color,alpha=alpha,label=r'above completeness limit')
     ax.errorbar(m[m>=completeness],hist[m>=completeness],yerr=err[m>completeness],xerr=binsize/2,
-                 marker='o',ms=ms,mec=color,mfc='white',ls='none',ecolor=color,alpha=alpha,label=r'above completeness limit')
+                 marker='o',ms=ms,mec=color,mfc='white',ls='none',ecolor=color,alpha=alpha,label=r'below completeness limit')
     
     # for overluminous objects
     ax.errorbar(m_OL,hist_OL,yerr=np.sqrt(hist_OL),xerr=binsize/2,
@@ -224,14 +224,14 @@ def plot_pnlf(data,mu,completeness,mask=None,binsize=0.25,mlow=None,mhigh=None,M
     if filename:
         savefig(filename.with_suffix('.pdf'),bbox_inches='tight')
     else:
-        plt.show()
+        pass
 
     return (ax1,ax2)
 
 
 
 
-def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
+def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
     
     Mmax = -4.47
     fig, (ax1,ax2) = plt.subplots(nrows=2,ncols=1,figsize=(0.9*single_column,single_column*1.8))
@@ -256,7 +256,7 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     ax1.plot(MOIII,OIII_Ha,c='black',lw=0.6)
     ax1.axhline(10**4)
 
-    if completeness:
+    if completeness and mu:
         ax1.axvline(completeness-mu,ls='--',c='grey',lw=0.5)
     ax1.axvline(Mmax,ls='--',c='grey',lw=0.5)
 
@@ -269,14 +269,14 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
         if t=='PN':
             # indicate for which PN we don't have a detection in HA6562
             tmp = tbl[tbl['HA6562_detection']]
-            ax1.errorbar(tmp['mOIII']-mu,10**tmp['R'],marker='o',ms=3,mfc=tab10[0],mec=tab10[0],ls='none',label=t) 
+            ax1.errorbar(tmp['MOIII'],10**tmp['R'],marker='o',ms=3,mfc=tab10[0],mec=tab10[0],ls='none',label=t) 
             #ax1.errorbar(tbl['mOIII']-mu,1.11*10**tbl['R'],
             #             marker=r'$\uparrow$',ms=4,mec=tab10[0],ls='none') 
             
             tmp = tbl[~tbl['HA6562_detection']]
-            ax1.errorbar(tmp['mOIII']-mu,10**tmp['R'],**style[t]) 
+            ax1.errorbar(tmp['MOIII'],10**tmp['R'],**style[t]) 
         else:
-            ax1.errorbar(tbl['mOIII']-mu,10**tbl['R'],**style[t],label=t) 
+            ax1.errorbar(tbl['MOIII'],10**tbl['R'],**style[t],label=t) 
 
         #if t=='SNR':
         #   tbl = tbl[tbl['SNRorPN']] 
@@ -285,7 +285,7 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
    
     # objects that were rejeceted by eye
     tbl = table[table['overluminous']]
-    ax1.errorbar(tbl['mOIII']-mu,tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),marker='o',ms=3,ls='none',color='tab:green') 
+    ax1.errorbar(tbl['MOIII'],tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),marker='o',ms=3,ls='none',color='tab:green') 
 
     ax1.set(xlim=[-5,np.ceil(completeness-mu)-0.7],
            ylim=[0.03,200],
@@ -295,11 +295,12 @@ def plot_emission_line_ratio(table,mu,completeness=None,filename=None):
     
     ax1.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.16g}'.format(y)))
 
-    ax1t = ax1.twiny()
-    xlim1,xlim2 = ax1.get_xlim()
-    ax1t.set_xticks(np.arange(np.ceil(xlim1+mu),np.floor(xlim2+mu)+1),minor=False)
-    ax1t.set(xlim   = [xlim1+mu,xlim2+mu],
-            xlabel = r'$m_{[\mathrm{O}\,\textsc{iii}]}$')
+    if mu:
+        ax1t = ax1.twiny()
+        xlim1,xlim2 = ax1.get_xlim()
+        ax1t.set_xticks(np.arange(np.ceil(xlim1+mu),np.floor(xlim2+mu)+1),minor=False)
+        ax1t.set(xlim   = [xlim1+mu,xlim2+mu],
+                xlabel = r'$m_{[\mathrm{O}\,\textsc{iii}]}$')
 
     # ------------------------------------------------
     # middle plot Ha/[NII] over Ha/[SII]

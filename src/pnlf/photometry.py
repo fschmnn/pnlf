@@ -23,6 +23,7 @@ from photutils import aperture_photometry      # measure flux in aperture
 from photutils import Background2D, MedianBackground, MMMBackground, SExtractorBackground
 
 from dust_extinction.parameter_averages import CCM89, F99
+import pyneb
 
 import scipy.optimize as optimization          # fit Gaussian to growth curve
 
@@ -261,8 +262,8 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
                 flux['Av']  = 0.44 * np.array([self.Av[int(row['y']),int(row['x'])] for row in flux])
             else:
                 flux['Av'] = 0
-            if hasattr(self,'Ebv'):
-                flux['Ebv'] = np.array([self.Ebv_stars[int(row['y']),int(row['x'])] for row in flux])
+            if hasattr(self,'Ebv_stars'):
+                flux['Ebv_stars'] = np.array([self.Ebv_stars[int(row['y']),int(row['x'])] for row in flux])
             else:
                 flux['Ebv'] = 0
 
@@ -278,12 +279,6 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         if k=='OIII5006':
             flux[k] /= extinction_mw
             logger.info(f'lambda{wavelength}: Av={-2.5*np.log10(extinction_mw):.2f}')
- 
-        #extinction_int = extinction_model.extinguish(wavelength*u.angstrom,Av=flux['Av'])
-        extinction_int = extinction_model.extinguish(wavelength*u.angstrom,Av=flux['Av'])
-
-        if extinction == 'all':
-            flux[k][~np.isnan(extinction_int)] /= extinction_int[~np.isnan(extinction_int)]
 
         flux[f'{k}_aperture_sum'] = v['aperture_sum']
         flux[f'{k}_err'] = v['aperture_sum_err']
@@ -292,6 +287,17 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         flux[f'{k}_bkg_median'] = v['bkg_median']
         #flux[f'{k}_bkg_convole'] = v['bkg_convolve']
         flux[f'{k}_SIGMA'] = v['SIGMA']
+
+    # the internal extinction correction based on the balmer decrement
+    rc = pyneb.RedCorr(R_V=3.1,law='CCM89')
+    rc.setCorr(obs_over_theo= flux['HA6562']/flux['HB4861'] / 2.86, wave1=6562.81, wave2=4861.33)
+    rc.E_BV[(rc.E_BV<0) | (flux['HB4861']<3*flux['HB4861_err']) |  (flux['HA6562']<3*flux['HA6562_err'])] = 0
+    flux['EBV_balmer'] = rc.E_BV
+    for line in lines:
+        wavelength = int(re.findall(r'\d{4}', line)[0])
+        flux[f'{line}_corr'] = flux[line] * rc.getCorr(wavelength)
+        flux[f'{line}_corr_err'] = flux[f'{line}_err'] * rc.getCorr(wavelength)
+
 
     logger.info('all flux measurements completed')
 

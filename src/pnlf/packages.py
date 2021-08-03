@@ -39,7 +39,7 @@ from astropy.visualization import simple_norm
 import astropy
 
 from astropy.table import Table,QTable   # useful datastructure
-from astropy.table import vstack         # combine multiple tables
+from astropy.table import vstack, join   # combine multiple tables
 from astropy.nddata import NDData, StdDevUncertainty, Cutout2D  
 
 from astropy.io import ascii,fits        # open text and fits files

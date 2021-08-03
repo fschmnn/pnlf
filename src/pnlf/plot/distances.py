@@ -275,34 +275,34 @@ def plot_distances(distance,plus,minus,distances,filename=None):
         plt.savefig(filename.with_suffix('.pdf'))
         plt.savefig(filename.with_suffix('.pgf'))
 
-    # replace the link in the pgf document with a 
-    #    \defcitealias{bibkey}{Author+year} 	
-    #    \citetalias{bibkey} 
-    # some papers are cited in the body and hence have a different key
-    existing_keys = {
-       '2021arXiv210501982R' : 'Roth+2021',
-       '2017ApJ...834..174K' : 'Kreckel+2017',
-       '2008ApJ...683..630H' : 'Herrmann+2008',
-       '2002ApJ...577...31C' : 'Ciardullo+2002',
-       '2021MNRAS.501.3621A' : 'Anand+2021',
-       '2001ApJ...553...47F' : 'Freedman+2001'
-    }
+        # replace the link in the pgf document with a 
+        #    \defcitealias{bibkey}{Author+year} 	
+        #    \citetalias{bibkey} 
+        # some papers are cited in the body and hence have a different key
+        existing_keys = {
+        '2021arXiv210501982R' : 'Roth+2021',
+        '2017ApJ...834..174K' : 'Kreckel+2017',
+        '2008ApJ...683..630H' : 'Herrmann+2008',
+        '2002ApJ...577...31C' : 'Ciardullo+2002',
+        '2021MNRAS.501.3621A' : 'Anand+2021',
+        '2001ApJ...553...47F' : 'Freedman+2001'
+        }
 
-    with open(basedir / 'reports' / 'citealias.tex','r',encoding='utf8') as f:
-        citealias = set(f.read().split('\n'))
+        with open(basedir / 'reports' / 'citealias.tex','r',encoding='utf8') as f:
+            citealias = set(f.read().split('\n'))
 
-    with open(filename.with_suffix('.pgf'),'r',encoding='utf8') as f:
-        text = f.read()
-        for row in distances:
-            row['Refcode'] = existing_keys.get(row["Refcode"],row["Refcode"])
-            text=text.replace(row['link'],f'\citetalias{{{row["Refcode"]}}}')
-            citealias.add(f'\defcitealias{{{row["Refcode"]}}}{{{row["name"]}}}')
-    
-    with open(filename.with_suffix('.pgf'),'w',encoding='utf8') as f:
-        f.write(text)
+        with open(filename.with_suffix('.pgf'),'r',encoding='utf8') as f:
+            text = f.read()
+            for row in distances:
+                row['Refcode'] = existing_keys.get(row["Refcode"],row["Refcode"])
+                text=text.replace(row['link'],f'\citetalias{{{row["Refcode"]}}}')
+                citealias.add(f'\defcitealias{{{row["Refcode"]}}}{{{row["name"]}}}')
+        
+        with open(filename.with_suffix('.pgf'),'w',encoding='utf8') as f:
+            f.write(text)
 
-    with open(basedir / 'reports' / 'citealias.tex','w',encoding='utf8') as f:
-        f.write('\n'.join(sorted(citealias)))
+        with open(basedir / 'reports' / 'citealias.tex','w',encoding='utf8') as f:
+            f.write('\n'.join(sorted(citealias)))
 
     plt.show()
 

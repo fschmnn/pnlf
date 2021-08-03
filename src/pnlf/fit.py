@@ -6,6 +6,10 @@ from IPython.display import display, Math
 class linearMLE:
     '''Define the probabilistic model...
 
+    this class provides all the necessary routines to do a MLE fit 
+    with a mixture model that allows for bad points that are marked 
+    as outliers.
+
     based on the blog post by
     https://dfm.io/posts/mixture-models/
     
@@ -116,7 +120,9 @@ class linearMLE:
         quantiles = np.percentile(lines, [16, 84], axis=0)
         if not ax:
             fig,ax=plt.subplots()
-        ax.fill_between(x0, quantiles[0], quantiles[1], color="#E05659", alpha=0.7)
+
+        ax.fill_between(x0, quantiles[0], quantiles[1], color="#E05659", alpha=0.7)    
+        ax.plot(x0,self.results['b'][0]+x0*self.results['m'][0],color='black')
 
         # Plot the data.
         ax.errorbar(self.x, self.y, yerr=self.yerr, fmt=",k", ms=0, capsize=0, lw=1, zorder=999)

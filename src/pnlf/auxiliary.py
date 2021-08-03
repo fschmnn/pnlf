@@ -379,5 +379,31 @@ def sample_numerical(x,y,N=100,plot=False):
     return sample
 
 
-    
+
+def project(x, y, pa, inc):
+    """General rotation/projection routine.
+
+    Given coordinates (x, y), will rotate and project given position angle (counter-clockwise from N), and
+    inclination. Assumes centre is at (0, 0).
+    Args:
+        x (float or numpy.ndarray): x-coordinate(s)
+        y (float or numpy.ndarray): y-coordinates(s)
+        pa (float): Position angle (degrees)
+        inc (float): Inclination (degrees)
+    Returns:
+        x_proj, y_proj: The rotated, projected (x, y) coordinates.
+    """
+
+    angle = np.radians(pa)
+    cos_a, sin_a = np.cos(angle), np.sin(angle)
+    x_proj = x * cos_a + y * sin_a
+    y_proj = - x * sin_a + y * cos_a
+    # Account for inclination
+    x_proj /= np.cos(np.radians(inc))
+    return x_proj, y_proj
+
+def r25(x,y,centre,pa,inc,r25):
+    '''calculate radius in terms of r25'''
+
+    pass
     

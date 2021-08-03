@@ -95,7 +95,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     table['HA6562_S/N']   =  table['HA6562']/table['HA6562_err']
     table['SII_S/N']  =  table['SII']/table['SII_err'] 
 
-    # use the velocity dispersion with the highest singal to noise
+    # we use the Halpha velocity dispersion. the others can behave funny
     table['v_SIGMA']     = table['HA6562_SIGMA']
     table['v_SIGMA_S/N'] = table['HA6562_S/N']
 
@@ -271,6 +271,18 @@ class MaximumLikelihood1D:
         #logger.info(f'{self.x:.3f}+{self.plus:.3f}-{self.minus:.3f}')
 
         return self.x,self.plus,self.minus
+
+    def bootstrap(self,guess,N_boot=100):
+        '''use bootstraping to estinate the uncertainties'''
+
+        loglike = lambda param,data: -np.sum(np.log(self.func(data,param,**self.kwargs)))
+        result_bootstrap = np.zeros((N_boot))
+
+        for i in range(N_boot):
+            sample = np.random.choice(self.data,len(self.data))
+            result_bootstrap[i] = minimize(loglike,guess,args=(sample),method=self.method).x[0]
+
+        return np.mean(result_bootstrap),np.std(result_bootstrap)
 
     def plot(self,limits=[]):
         '''plot the likelihood

@@ -131,9 +131,8 @@ class ReadLineMaps:
         # star mask
         star_mask_file = folder.parent / 'AUXILIARY' / 'starmasks' / f'{self.name}_starmask.fits'
         seeing_map_file = folder.parent / 'AUXILIARY' / 'seeing_maps' / f'{self.name}_seeing.fits'
-        av_file = folder.parent  / 'AUXILIARY' / 'AVmaps' / f'{self.name}_AV.fits'
 
-        for filename, description in zip([star_mask_file,seeing_map_file,av_file],["star_mask","PSF","Av"]):
+        for filename, description in zip([star_mask_file,seeing_map_file],["star_mask","PSF"]):
 
             if filename.is_file():
                 with fits.open(filename) as hdul:

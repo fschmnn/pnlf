@@ -40,9 +40,15 @@ def create_RGB(r,g,b,stretch='linear',weights=None,percentile=95):
     b : ndarray
         (n,m) array that is used for the blue channel
     
-    percentile : float
+    percentile : float or list
         percentile that is used for the normalization
-        
+    
+    weights : float or list
+        scale the channel by this value (between 0 and 1)
+
+    stretch : str
+        currently not implemented
+
     Returns
     -------
     rgb : ndarray
