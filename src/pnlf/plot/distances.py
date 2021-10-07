@@ -191,7 +191,7 @@ def compile_distances(name):
     return distances
 
 
-def plot_distances(distance,plus,minus,distances,filename=None):
+def plot_distances(name,distance,plus,minus,distances,filename=None):
     '''plot the measured distances and the literature values in distances
 
     this function uses the list compiled by compile_distances and plots it
@@ -235,8 +235,8 @@ def plot_distances(distance,plus,minus,distances,filename=None):
         label.set_transform(label.get_transform() + offset)
 
     ax2 = ax.twinx()
-    ax2.set_yticks(distances['y'],minor=False)
-    ax2.set_yticklabels(distances['link'],ha="left",fontsize=7)
+    ax2.set_yticks(list(distances['y'])+[len(distances['y'])+1],minor=False)
+    ax2.set_yticklabels(list(distances['link'])+[name],ha="left",fontsize=7)
     ax2.set_ylim([0.5,len(distances)+0.5])
     
     # create second x-axis in Mpc
@@ -251,7 +251,22 @@ def plot_distances(distance,plus,minus,distances,filename=None):
     ax3.xaxis.set_major_locator(mpl.ticker.LogLocator(base=10,subs='all'))
     ax3.xaxis.set_major_formatter(mpl.ticker.LogFormatter(minor_thresholds=(2, 0.5)))
     ax3.tick_params(axis='x',zorder=0)
-    
+
+    fig.canvas.draw()
+
+    # add the galaxy name
+    pos = ax2.axes.get_position()
+    xp = pos.x0+pos.width
+    yp = pos.height
+    #ax.annotate(name, xy=(0.02,yp+0.5*row_height/height), xycoords='figure fraction',fontsize=7)    
+    #ax.annotate(name, xy=(pos.width+0.5*pos.x0,yp+0.5*row_height/height), xycoords='figure fraction',fontsize=7)    
+
+    label = f'$(m-M)={distance:.2f}^{{+{plus:.2f}}}_{{-{minus:.2f}}}$'
+    #ax.annotate(label, xy=(pos.width+0.5*pos.x0,yp+0.5*row_height/height), xycoords='figure fraction',fontsize=7)    
+
+    #print(xp,yp)
+    #print(fig.transFigure.inverted().transform(pos))
+
     #plt.subplots_adjust(bottom=0.32/height,top=1-0.32/height)
     #ax.set_position(mpl.transforms.Bbox(np.array([[0.12,2*row_height/height],[0.5,1-2*row_height/height]])))
     #ax2.set_position(mpl.transforms.Bbox(np.array([[0.12,2*row_height/height],[0.5,1-2*row_height/height]])))

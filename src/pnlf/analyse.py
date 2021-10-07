@@ -57,14 +57,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     table : Astropy Table
         The input table with an additional column, indicating the type of the object
     '''
-    
-    # we check if all columns exist
-    required = ['HB4861','OIII5006','HA6562','NII6583','SII6716','SII6730','mOIII']
-    missing = set(required) - set(table.columns)
-    if missing:
-        raise KeyError(f'input table is missing {", ".join(missing)}')
-    del missing
-       
+
     # we don't want to modift the original input table
     table = table.copy()
 
@@ -72,22 +65,24 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     logger.info(f'using mu={distance_modulus:.2f}, cl={completeness_limit}')
 
     # make sure that the new column can save strings with 3 characters
-    table['type'] = np.empty(len(table),dtype='U3')
     # we start with the assumption that all sources are PN and remove contaminants later
+    table['type'] = np.empty(len(table),dtype='U3')
     table['type'][:] = 'PN'
 
     # calculate the absolute magnitude based on a first estimate of the distance modulus 
     table['MOIII'] = table['mOIII'] - distance_modulus
+    
+    # we need the the sum of the [SII] lines
     table['SII'] = table['SII6716']+table['SII6730']
     table['SII_err'] = np.sqrt(table['SII6716_err']**2+table['SII6730_err']**2)
 
-    # we set negative fluxes to the error (0 would cause because we work with ratios)
+    # we set negative fluxes to the error (0 would cause errors because we work with ratios)
     for col in ['HB4861','OIII5006','HA6562','NII6583','SII']:
-        # median of error maps is a factor of 3 smaller than std of maps
-        detection = (table[col]>0) & (table[col]>9*table[f'{col}_err'])
+        # median of error maps is a factor of 3 smaller than std of maps (error is already increased)
+        detection = (table[col]>0) & (table[col]>3*table[f'{col}_err'])
         #logger.info(f'{np.sum(~detection)} not detected in {col}')
-        table[col][np.where(table[col]<0)] = table[f'{col}_err'][np.where(table[col]<0)] 
-        #table[col][np.where(~detection)] = table[f'{col}_err'][np.where(~detection)] 
+        #table[col][np.where(table[col]<0)] = table[f'{col}_err'][np.where(table[col]<0)] 
+        table[col][np.where(~detection)] = 3*table[f'{col}_err'][np.where(~detection)] 
         table[f'{col}_detection'] = detection
 
     # calculate velocity dispersion (use line with best signal to noise)
@@ -98,7 +93,6 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     # we use the Halpha velocity dispersion. the others can behave funny
     table['v_SIGMA']     = table['HA6562_SIGMA']
     table['v_SIGMA_S/N'] = table['HA6562_S/N']
-
     #table['v_SIGMA'][np.where(table['HA6562_SIGMA']/table['HA6562_SIGMA_ERR']>table['v_SIGMA_S/N'] )] = table['HA6562_SIGMA'][np.where(table['HA6562_SIGMA']/table['HA6562_SIGMA_ERR']>table['v_SIGMA_S/N'] )]
     #table['v_SIGMA_S/N'][np.where(table['HA6562_SIGMA']/table['HA6562_SIGMA_ERR']>table['v_SIGMA_S/N'] )] = table['HA6562_S/N'][np.where(table['HA6562_SIGMA']/table['HA6562_SIGMA_ERR']>table['v_SIGMA_S/N'] )] 
     #table['v_SIGMA'][np.where(table['SII6716_SIGMA']/table['SII6716_SIGMA_ERR']>table['v_SIGMA_S/N'])] = table['SII6716_SIGMA'][np.where(table['SII6716_SIGMA']/table['SII6716_SIGMA_ERR']>table['v_SIGMA_S/N'] )]
@@ -139,7 +133,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
 
     # remove rows with NaN values in some columns
     mask =  np.ones(len(table), dtype=bool)
-    for col in required:
+    for col in ['HB4861','OIII5006','HA6562','NII6583','SII']:
         mask &=  ~np.isnan(table[col])
     table['type'][np.where(~mask)] = 'NaN'
     #table = table[mask]

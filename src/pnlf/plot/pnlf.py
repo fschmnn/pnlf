@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 from ..constants import tab10, single_column, two_column
 
-def _plot_pnlf(data,mu,completeness,mask=None,binsize=0.4,mlow=None,mhigh=None,Mmax=-4.47,color=tab10[0],alpha=1,ax=None,ms=6):
+def _plot_pnlf(data,mu,completeness,mask=None,binsize=0.4,mlow=None,mhigh=None,Mmax=-4.47,color=tab10[0],alpha=1,ax=None,ms=4):
     '''Plot PNLF
 
     this function plots a minimalistic PNLF (without labels etc.)
@@ -52,7 +52,7 @@ def _plot_pnlf(data,mu,completeness,mask=None,binsize=0.4,mlow=None,mhigh=None,M
     m = (bins[1:]+bins[:-1]) / 2
     
     # for the fit line we use a smaller binsize
-    binsize_fine = 0.1
+    binsize_fine = 0.01
     bins_fine = np.arange(mlow-binsize_fine,mhigh+binsize_fine,binsize_fine)
     m_fine = (bins_fine[1:]+bins_fine[:-1]) /2
     #hist_fine, _ = np.histogram(data[~mask],bins_fine,normed=False)
@@ -86,7 +86,7 @@ def _plot_pnlf(data,mu,completeness,mask=None,binsize=0.4,mlow=None,mhigh=None,M
         ax.set_xlim([1.1*mlow-0.1*mhigh,mhigh])
 
     # dirty hack to avoid 100 in NGC3351
-    ax.set_ylim([0.6,min(2*np.max(hist),99)])
+    #ax.set_ylim([0.6,min(2*np.max(hist),99)])
 
 
     ax.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.3g}'.format(y)))
@@ -98,7 +98,7 @@ def _plot_pnlf(data,mu,completeness,mask=None,binsize=0.4,mlow=None,mhigh=None,M
     return ax
 
 
-def _plot_cum_pnlf(data,mu,completeness=None,binsize=None,mlow=None,mhigh=None,Mmax=-4.47,color=tab10[0],alpha=1,ax=None):
+def _plot_cum_pnlf(data,mu,completeness=None,binsize=None,mlow=None,mhigh=None,Mmax=-4.47,color=tab10[0],alpha=1,ms=2,ax=None):
     '''Plot cumulative PNLF
 
     this function plots a minimalistic cumulative PNLF (without labels etc.)
@@ -142,9 +142,9 @@ def _plot_cum_pnlf(data,mu,completeness=None,binsize=None,mlow=None,mhigh=None,M
         bins = np.arange(mlow,mhigh,binsize)
         m = (bins[1:]+bins[:-1]) /2
         hist,_ = np.histogram(data,bins,density=False)
-        ax.plot(m[m<completeness],np.cumsum(hist[m<completeness]),ls='none',mfc=color,mec=color,ms=2,marker='o',label='data')
+        ax.plot(m[m<completeness],np.cumsum(hist[m<completeness]),ls='none',mfc=color,mec=color,ms=ms,marker='o',label='data')
     else:
-        ax.plot(data[data<completeness],np.arange(1,N+1,1),ls='none',mfc=color,mec=color,ms=1,marker='o',alpha=alpha,label='data')
+        ax.plot(data[data<completeness],np.arange(1,N+1,1),ls='none',mfc=color,mec=color,ms=ms,marker='o',alpha=alpha,label='data')
 
 
 
@@ -206,18 +206,20 @@ def plot_pnlf(data,mu,completeness,mask=None,binsize=0.25,mlow=None,mhigh=None,M
         fig = figure(figsize=(two_column,two_column/2))
         ax1 = fig.add_subplot(1,2,1)
         ax2 = fig.add_subplot(1,2,2)
+        ax1.set_xlabel(r'$m_{[\mathrm{O}\,\tiny{\textsc{iii}}]}$ / mag')
+        ax1.set_ylabel(r'$N$')
+
+        ax2.set_xlabel(r'$m_{[\mathrm{O}\,\tiny{\textsc{iii}}]}$ / mag')
+        ax2.set_ylabel(r'Cumulative N')
+
     else:
         ax1,ax2 = axes 
         fig = ax1.get_figure()
 
-    ax1 = _plot_pnlf(data,mu,completeness,mask=mask,binsize=binsize,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax1)
-    ax2 = _plot_cum_pnlf(data,mu,completeness,binsize=None,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax2)
+    ax1 = _plot_pnlf(data,mu,completeness,mask=mask,binsize=binsize,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax1,ms=2)
+    ax2 = _plot_cum_pnlf(data,mu,completeness,binsize=None,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax2,ms=0.5)
 
-    ax1.set_xlabel(r'$m_{[\mathrm{OIII}]}$ / mag')
-    ax1.set_ylabel(r'$N$')
 
-    ax2.set_xlabel(r'$m_{[\mathrm{OIII}]}$ / mag')
-    ax2.set_ylabel(r'Cumulative N')
 
     plt.tight_layout()
 
@@ -255,6 +257,7 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
     OIII_Ha = 10**(-0.37*(MOIII)-1.16)
     ax1.plot(MOIII,OIII_Ha,c='black',lw=0.6)
     ax1.axhline(10**4)
+    #ax1.axhline(1.6,color='black',lw=0.6)
 
     if completeness and mu:
         ax1.axvline(completeness-mu,ls='--',c='grey',lw=0.5)
@@ -271,9 +274,11 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
             tmp = tbl[tbl['HA6562_detection']]
             ax1.errorbar(tmp['MOIII'],10**tmp['R'],marker='o',ms=3,mfc=tab10[0],mec=tab10[0],ls='none',label=t) 
             #ax1.errorbar(tbl['mOIII']-mu,1.11*10**tbl['R'],
-            #             marker=r'$\uparrow$',ms=4,mec=tab10[0],ls='none') 
-            
+            #             marker=r'$\uparrow$',ms=4,mec=tab10[0],ls='none')  
+
             tmp = tbl[~tbl['HA6562_detection']]
+            ax1.errorbar(tmp['mOIII']-mu,1.18*10**tmp['R'],
+                         marker=r'$\uparrow$',ms=4,mec=tab10[0],ls='none')  
             ax1.errorbar(tmp['MOIII'],10**tmp['R'],**style[t]) 
         else:
             ax1.errorbar(tbl['MOIII'],10**tbl['R'],**style[t],label=t) 
@@ -290,8 +295,8 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
     ax1.set(xlim=[-5,np.ceil(completeness-mu)-0.7],
            ylim=[0.03,200],
            yscale='log',
-           xlabel=r'$M_{[\mathrm{O}\,\textsc{iii}]}$',
-           ylabel=r'$I_{[\mathrm{O}\,\textsc{iii}]} \; /\;(I_{\mathrm{H}\,\alpha+\mathrm{[N\,\textsc{ii}]}})$')
+           xlabel=r'$M_{[\mathrm{O}\,\tiny{\textsc{iii}}]}$',
+           ylabel=r'$I_{[\mathrm{O}\,\tiny{\textsc{iii}}]} \; /\;(I_{\mathrm{H}\,\alpha+{[\mathrm{N}\,\tiny{\textsc{ii}}]}})$')
     
     ax1.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.16g}'.format(y)))
 
@@ -300,24 +305,31 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
         xlim1,xlim2 = ax1.get_xlim()
         ax1t.set_xticks(np.arange(np.ceil(xlim1+mu),np.floor(xlim2+mu)+1),minor=False)
         ax1t.set(xlim   = [xlim1+mu,xlim2+mu],
-                xlabel = r'$m_{[\mathrm{O}\,\textsc{iii}]}$')
+                xlabel = r'$m_{[\mathrm{O}\,\tiny{\textsc{iii}}]}$')
 
     # ------------------------------------------------
     # middle plot Ha/[NII] over Ha/[SII]
     # ------------------------------------------------
     
     for t in ['HII','SNR','PN']:
-        tbl = table[(table['type']==t)] #& (table['HA6562_detection'] | table['HA6562_detection'])]
+        tbl = table[(table['type']==t) & (table['HA6562_detection'] | table['HA6562_detection'])]
 
+
+        xerr = np.sqrt( (tbl['SII_err']/tbl['SII'])**2 + (tbl['HA6562_err']/tbl['HA6562'])**2 ) / np.log(10)
 
         if t=='PN':
             # indicate for which PN we don't have a detection in HA6562
             tmp = tbl[tbl['SII_detection']]
-            ax2.errorbar(np.log10(tmp['SII']/tmp['HA6562']),np.log10(tmp['NII6583']/tmp['HA6562']),
-                         marker='o',ms=3,mfc=tab10[0],mec=tab10[0],ls='none',label=t) 
+            #ax2.errorbar(np.log10(tmp['SII']/tmp['HA6562']),np.log10(tmp['NII6583']/tmp['HA6562']),xerr=xerr,
+            #             marker='o',ms=3,mfc=tab10[0],mec=tab10[0],ls='none',label=t) 
+            
             tmp = tbl[~tbl['SII_detection']]
+
+            ax2.errorbar(-0.04+np.log10(tmp['SII']/tmp['HA6562']),np.log10(tmp['NII6583']/tmp['HA6562']),
+                         marker=r'$\leftarrow$',ms=4,mec=tab10[0],ls='none')  
+
             ax2.errorbar(np.log10(tmp['SII']/tmp['HA6562']),np.log10(tmp['NII6583']/tmp['HA6562']),
-                         **style[t]) 
+                         **style[t],label=t) 
         else:
             ax2.errorbar(np.log10(tbl['SII']/tbl['HA6562']),np.log10(tbl['NII6583']/tbl['HA6562']),
                      **style[t],label=t)
@@ -341,8 +353,8 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
     ax2.set(xlim=[-1.5,1],
            ylim=[-1.5,1],
            #yscale='log',
-           xlabel=r'$\log_{10} \left(I_{[\mathrm{S}\,\textsc{ii}]} \; /\; I_{\mathrm{H}\,\alpha} \right)$',
-           ylabel=r'$\log_{10} (I_{[\mathrm{N}\,\textsc{ii}]} \; /\; I_{\mathrm{H}\,\alpha})$')    
+           xlabel=r'$\log_{10} \left(I_{[\mathrm{S}\,\tiny{\textsc{ii}}]} \; /\; I_{\mathrm{H}\,\alpha} \right)$',
+           ylabel=r'$\log_{10} (I_{[\mathrm{N}\,\tiny{\textsc{ii}}]} \; /\; I_{\mathrm{H}\,\alpha})$')    
     ax2.xaxis.set_major_locator(mpl.ticker.MultipleLocator(0.5))
     ax2.yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.5))
     ax2.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.1))
