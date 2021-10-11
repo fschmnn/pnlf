@@ -2,3 +2,5 @@
 *
 # Except this file and .gitignore in sub directories
 !.gitignore
+
+!pnlf.png

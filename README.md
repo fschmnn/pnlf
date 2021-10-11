@@ -14,6 +14,12 @@ The data is already reduced and advanced data products like emission line maps a
 
 A more detailed description of the functionality is either provided by the docstrings of the functions and classes or by the jupyter notebooks. They are annotated with additional background information on what what's happening.
 
+
+
+![PNLF](https://github.com/fschmnn/pnlf/tree/master/references/pnlf.png)
+
+
+
 ## Installation
 
 In principle one could clone this repository from [github](https://github.com/fschmnn/pnlf) and use it right away. However to ensure that everything works as intended, a few additional steps are recommended.
