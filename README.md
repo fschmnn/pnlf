@@ -2,21 +2,21 @@
 
 *last updated 2020.08.25*
 
-A Python package to manipulate, analyze and plot MUSE data for Planetary Nebula studies
+A Python package to analyse MUSE data and measure the Planetary Nebula Luminosity Function (PNLF).
 
 
 
 ## Description
 
-For my PhD thesis I'm using spectroscopic data from the [Multi Unit Spectroscopic Explorer](https://www.eso.org/sci/facilities/develop/instruments/muse.html) (MUSE) instrument of the VLT. This data has been observed as part of the [PHANGS](https://sites.google.com/view/phangs/home) collaboration. 
+This repository contains the code for Scheuermann et al. (submitted). 
 
-The data is already reduced and advanced data products like emission line maps are available from other members of the collaboration. This package aims to provide a structured tool for exploring and analyzing this dataset.
+The data used in this project has been observed for the [PHANGS](https://sites.google.com/view/phangs/home) collaboration (Emsellem et al. [submitted](https://arxiv.org/abs/2110.03708)).
 
-A more detailed description of the functionality is either provided by the docstrings of the functions and classes or by the jupyter notebooks. They are annotated with additional background information on what what's happening.
+The *planetary nebula luminosity function* (PNLF) is an empirical relation that can be used to measure the distance to nearby galaxies. 
 
+![PNLF](https://raw.githubusercontent.com/fschmnn/pnlf/master/references/pnlf.png)
 
-
-![PNLF](https://github.com/fschmnn/pnlf/tree/master/references/pnlf.png)
+A detailed description of the functionality is either provided by the docstrings of the functions and classes or in the jupyter notebooks. They are annotated with additional background information on what what's happening.
 
 
 
