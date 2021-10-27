@@ -3,6 +3,7 @@ import logging            # log errors
 import os
 import sys
 from pathlib import Path  # filesystem related stuff
+import re                 # regular expression to find resolution from
 
 import numpy as np
 from astropy.wcs import WCS    # handle astronomic coordinates
@@ -20,25 +21,21 @@ from .constants import two_column, arcsec_to_pixel
 logger = logging.getLogger(__name__)
 
 class ReadLineMaps:
-    '''load a fits file from the MUSEDAP with the line maps
+    '''load a fits file from the PHANGS--MUSE DAP (the line maps)
     
-    This class reads the emission line maps from the MUSE datapipeline
-    and provides a convienient structure to store the data. It is 
-    expected that the data resides in the specified folder which should
-    als obe the name of the object. The folder itself may contain 
-    multiple fits files.
-    The main fits files are named `GalaxyName_MAPS.fits` and contain multiple 
-    extenstions of the form `ExtensionName_FLUX` (you must omit the `_FLUX`
-    in the name). This script reads only the extensions that are specified 
-    by the appropriate keyword. It also tries to read an extension named
-    `ExtensionName_FLUX_ERR` which contains the associated error. The header
-    of the first extensions is also used to extract WCS information.
-    Lastly it tries to open a file called `GalaxyName_seeing.fits` that 
-    contains additional information about the seeing of the different 
-    pointings and thus impacts the resulting point spread function (PSF).
+    Read the linemaps from the PHANGS-MUSE DAP. You only need to specify
+    the folder and the name of the galaxy. The function will pick the 
+    correct file and read all the specified extensions. If the file is 
+    from the copt, it will detect the resolution from the filename and
+    save it. 
+
+    It will also try to read some auxiliary files that should be in 
+    folder named `AUXILIARY` (next to `folder`). This folder should 
+    contain star masks, PSF maps (FWHM of each pointing) and an alternative
+    [OIII]5007 map (not measured from a fit).
     '''
     
-    def __init__(self,folder,name,extensions=['HB4861','OIII5006','HA6562','NII6583','SII6716','SII6730'],**kwargs):
+    def __init__(self,folder,name,extensions=[],**kwargs):
         '''
         Parameters
         ----------
@@ -53,29 +50,24 @@ class ReadLineMaps:
             extension in the previously defined fits file (the actual name
             of the extension is `ExtensionName_FLUX` and 
             `ExtensionName_FLUX_ERR` but they are automaticly completed).
+
+        **kwargs : 
+            any additional properties of the galaxy (like E(B-V) or 
+            parameters used during the analysis). They are saved as an 
+            attribute under the given name.
         '''
-
-        # PSF is given in arcsec but we need it in pixel
         
-        logger.info(f'loading {name}')
-
+        # we simply use the first file in the folder that starts with name
         self.name     = name
-        filename = folder/f'{name}_MAPS.fits'
-        if not filename.is_file():
-            files = [x for x in folder.iterdir() if name in x.stem]
-            if len(files)>1:
-                logger.warning(f'more than one file with name "{name}" in folder')
-                self.filename = files[0]
-            elif len(files)==0:
-                logger.warning(f'no file found with name "{name}"')
-                sys.exit(0)
-            else:
-                logger.info(f'using file "{files[0].stem}"')
-                self.filename = files[0]
-        else: 
-            self.filename = filename
+        self.filename = next(folder.glob(f'{name}*.fits'))
+        self.copt_res = np.float(next(iter(re.findall('-(.*)asec',self.filename.stem)), 'nan'))
+
+        logger.info(f'loading {self.filename.name}')
+
+
         self.lines    = []
         
+        # we save the additional parameters
         for k,v in kwargs.items():
             setattr(self,k,v)
 
@@ -122,13 +114,13 @@ class ReadLineMaps:
         #==============================================================
         
         # and one where OIII is not measured by fitting
-        OIII_bkg_map_file = folder.parent / 'AUXILIARY' / 'oiii_from_cubes' / f'{self.name}_oiii_flux.fits'
-        if OIII_bkg_map_file.is_file():
+        OIII_map_file = folder.parent / 'AUXILIARY' / 'oiii_from_cubes' / f'{self.name}_oiii_flux.fits'
+        if OIII_map_file.is_file():
             logger.info(f'replacing OIII5006 map')
             # replace the old line maps with the new one
             setattr(self,'OIII5006_DAP',getattr(self,'OIII5006'))
             setattr(self,'OIII5006_DAP_err',getattr(self,'OIII5006_err'))
-            data = fits.getdata(OIII_bkg_map_file,0)
+            data = fits.getdata(OIII_map_file,0)
             setattr(self,'OIII5006',data)
         else:
             logger.warn(f'"{self.name}_oiii_flux.fits" does not exists.')
@@ -176,7 +168,7 @@ class ReadLineMaps:
         
         string = ''
         for k,v in self.__dict__.items():
-            if type(v) == str:
+            if type(v) in [str,int,float]:
                 string += f'{k}: {v}\n'
             else:
                 string += k + '\n'
