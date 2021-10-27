@@ -89,6 +89,11 @@ class ReadLineMaps:
         # load the main DAP products
         #==============================================================
         with fits.open(self.filename) as hdul:
+            
+            # if no lines are given, we read in all lines
+            if len(lines)==0:
+                lst = hdul.info(output=False)
+                lines = [x[1].split('_')[0] for x in lst if x[1].endswith('_FLUX')]
 
             # save the white-light image
             header = hdul[f'FLUX'].header
@@ -128,7 +133,7 @@ class ReadLineMaps:
         else:
             logger.warn(f'"{self.name}_oiii_flux.fits" does not exists.')
 
-        # star mask
+        # star mask and seeing map (for PSF)
         star_mask_file = folder.parent / 'AUXILIARY' / 'starmasks' / f'{self.name}_starmask.fits'
         seeing_map_file = folder.parent / 'AUXILIARY' / 'seeing_maps' / f'{self.name}_seeing.fits'
 
@@ -162,7 +167,8 @@ class ReadLineMaps:
             self.PSF = np.ones_like(self.OIII5006)
             self.PSF[np.isnan(self.OIII5006)] = np.nan
         self.PSF *= arcsec_to_pixel 
-        
+        logger.info(f'galaxy has {len(np.unique(self.PSF[~np.isnan(self.PSF)]))} pointings')
+
         logger.info(f'file loaded with {len(self.lines)} extensions')
 
     def __repr__(self):
