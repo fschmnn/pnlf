@@ -35,14 +35,14 @@ basedir = Path(__file__).parent.parent.parent
 logger = logging.getLogger(__name__)
 
 
-def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,background='local',extinction='MW'):
+def measure_flux(LineMaps,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,background='local',extinction='MW'):
     '''
     measure flux for all lines in lines
     
     Parameters
     ----------
     
-    self : Galaxy
+    LineMaps : Galaxy
        Galaxy object with detected sources
     
     peak_tbl : astropy table
@@ -57,8 +57,9 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
     aperture_size : float
        size of the aperture in multiples of the fwhm
 
-    background : string
-        `local` (default) or `global` or None
+    background : no longer used
+
+    extinction : no longer used
     '''
 
     #del self.peaks_tbl['SkyCoord']
@@ -71,7 +72,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
     '''
 
     # self must be of type Galaxy
-    if not isinstance(self,ReadLineMaps):
+    if not isinstance(LineMaps,ReadLineMaps):
         logger.warning('input should be of type ReadLineMaps')
     
     if background not in ['global','local',None]:
@@ -79,16 +80,16 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
     # if no line is specified, we measure the flux in all line maps
     if not lines:
-        lines = self.lines
+        lines = LineMaps.lines
     else:
         # make sure lines is a list
         lines = [lines] if not isinstance(lines, list) else lines
     
         for line in lines:
-            if not hasattr(self,line):
-                raise AttributeError(f'{self.name} has no attribute {line}')
+            if not hasattr(LineMaps,line):
+                raise AttributeError(f'{LineMaps.name} has no attribute {line}')
             
-    logger.info(f'measuring fluxes in {self.name} for {len(peak_tbl)} sources\naperture = {aperture_size} fwhm')    
+    logger.info(f'measuring fluxes in {LineMaps.name} for {len(peak_tbl)} sources\naperture = {aperture_size} fwhm')    
     
 
     '''
@@ -97,14 +98,14 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
     out = {}
     for line in lines:
         
-        logger.info(f'measuring fluxes in [{line}] line map')
+        logger.info(f'measuring fluxes in {line} line map')
         
         # select data and error (copy in case we need to modify it)
-        data  = getattr(self,f'{line}').copy()
-        error = getattr(self,f'{line}_err').copy()
+        data  = getattr(LineMaps,f'{line}').copy()
+        error = getattr(LineMaps,f'{line}_err').copy()
         
         try:
-            v_disp = getattr(self,f'{line}_SIGMA')
+            v_disp = getattr(LineMaps,f'{line}_SIGMA')
         except:
             logger.warning('no maps with velocity dispersion for ' + line)
             v_disp = np.zeros(data.shape) 
@@ -115,6 +116,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
         # calculate a global background map
         mask = np.isnan(data)
+
         '''
         bkg = Background2D(data,(10,10), 
                         #filter_size=(15,15),
@@ -127,7 +129,6 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
         kernel = Box2DKernel(10) #Gaussian2DKernel(10) 
         bkg_convolve = convolve(data,kernel,nan_treatment='interpolate',preserve_nan=True)
-
     
         # this is too slow and the masks ignore bright HA emitter etc.
         source_mask = np.zeros(self.shape,dtype=bool)
@@ -140,6 +141,7 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
             for m in aperture.to_mask(method='center'):
                 source_mask |= m.to_image(self.shape).astype(bool)
         '''
+
 
         '''
         loop over the individual pointings (they have different fwhm)
@@ -159,11 +161,6 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
             # measure the flux for each source
             phot = aperture_photometry(data, aperture, error = error)
 
-            # calculate background in this aperture (from global map)
-            phot['bkg_global'] = 0 #aperture_photometry(bkg, aperture)['aperture_sum']
-            #phot['bkg_convolve'] = aperture_photometry(bkg_convolve, aperture)['aperture_sum']
-
-
             # the local background subtraction estimates the background for 
             # each source individually (annulus with 5 times the area of aperture) 
             r_in  = 4 * (fwhm-PSF_correction) / 2 
@@ -173,19 +170,15 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
 
             # background from annulus with sigma clipping
             bkg_median = []
-            bkg_median_no_clip = []
             for mask in annulus_masks:
                 # select the pixels inside the annulus and calulate sigma clipped median
                 annulus_data = mask.multiply(data)
                 annulus_data_1d = annulus_data[mask.data > 0]
-                median_sigclip,_ , _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=3,maxiters=3)          
-                bkg_median_no_clip.append(np.nanmedian(annulus_data_1d[~np.isnan(annulus_data_1d)]))          
-
+                _, median_sigclip , _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=3,maxiters=3)          
                 bkg_median.append(median_sigclip)
-            # save bkg_median in case we need it again
+
+            # save bkg_median in case we need it again and multiply background with size of the aperture
             phot['bkg_median'] = np.array(bkg_median) 
-            phot['bkg_global'] = np.array(bkg_median_no_clip)*aperture.area
-            # multiply background with size of the aperture
             phot['bkg_local'] = phot['bkg_median'] * aperture.area
             
             '''
@@ -200,28 +193,26 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
             # multiply background with size of the aperture
             phot['bkg_local'] = phot['bkg_median'] * aperture.area
             '''
-
+            
+            phot[f'{line}_flux'] = phot['aperture_sum'] - phot['bkg_local']
             # we don't subtract the background from OIII because there is none
             if line == 'OIII5006_DAP':
-                phot['flux'] = phot['aperture_sum']
-            else:
-                if background == 'local':
-                    phot['flux'] = phot['aperture_sum'] - phot['bkg_local']
-                else:
-                    phot['flux'] = phot['aperture_sum'] - phot['bkg_global']
+                phot[f'{line}_flux'] = phot['aperture_sum']
+
+            # correct for flux that is lost outside of the aperture
+            phot[f'{line}_flux'] /= light_in_moffat(r,alpha,gamma)
+            phot[f'{line}_flux_err'] = phot['aperture_sum_err'] / light_in_moffat(r,alpha,gamma)
+            #print(f'{fwhm}: {light_in_moffat(r,alpha,gamma):.2f}')
 
             # calculate the average of the velocity dispersion
             aperture = CircularAperture(positions, r=4)
             SIGMA = aperture_photometry(v_disp,aperture)
             phot['SIGMA'] = SIGMA['aperture_sum'] / aperture.area
 
-            aperture = CircularAperture(positions, r=2)
-            stellar_mass = aperture_photometry(self.stellar_mass,aperture)
-            phot['stellar_mass'] = stellar_mass['aperture_sum'] / aperture.area
-
-            # correct for flux that is lost outside of the aperture
-            phot['flux'] /= light_in_moffat(r,alpha,gamma)
-            #phot['flux'] /= light_in_gaussian(r,fwhm)
+            # calculate stellar mass (for mass specific PN number, not used)
+            #aperture = CircularAperture(positions, r=2)
+            #stellar_mass = aperture_photometry(LineMaps.stellar_mass,aperture)
+            #phot['stellar_mass'] = stellar_mass['aperture_sum'] / aperture.area
             
             # save fwhm in an additional column
             phot['fwhm'] = fwhm
@@ -243,61 +234,53 @@ def measure_flux(self,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,backgro
         # we need an empty table for the next line
         del flux
 
-    # initialize extinction model
-    extinction_model = CCM89(Rv=Rv)
-    #k = lambda lam: ext_model.evaluate(lam*u.angstrom,Rv) * Rv
-
     # so far we have an individual table for each emission line
-    for k,v in out.items():
+    for line,v in out.items():
         
-        # first we create the output table with 
-        if 'flux' not in locals():
-            flux = v[['id','xcenter','ycenter','fwhm','stellar_mass']]
-            flux.rename_column('xcenter','x')
-            flux.rename_column('ycenter','y')
-            flux['x'] = flux['x'].value         # we don't want them to be in pixel units
-            flux['y'] = flux['y'].value
-            if hasattr(self,'Av'):
-                # if the galaxy has an associated Av map we can correct for internal extinction
-                flux['Av']  = 0.44 * np.array([self.Av[int(row['y']),int(row['x'])] for row in flux])
-            else:
-                flux['Av'] = 0
-            if hasattr(self,'Ebv_stars'):
-                flux['Ebv_stars'] = np.array([self.Ebv_stars[int(row['y']),int(row['x'])] for row in flux])
-            else:
-                flux['Ebv'] = 0
-
-        flux[k] = v['flux'] 
-        
-        # linemaps are already MW extinction corrected (OIII sum is not) 
-        wavelength = re.findall(r'\d{4}', k)
+        # find the wavelength for the extinction correction
+        wavelength = re.findall(r'\d{4}', line)
         if len(wavelength) != 1:
             logger.error('line name must contain wavelength as 4 digit number in angstrom')
         wavelength = int(wavelength[0])
-        extinction_mw = extinction_model.extinguish(wavelength*u.angstrom,Ebv=Ebv)
 
-        if k=='OIII5006':
-            flux[k] /= extinction_mw
-            logger.info(f'lambda{wavelength}: Av={-2.5*np.log10(extinction_mw):.2f}')
+        # first we create the output table with 
+        if 'flux' not in locals():
+            flux = v[['id','xcenter','ycenter','fwhm']]
+            flux.rename_columns(['xcenter','ycenter'],['x','y'])
+            flux['x'] = flux['x'].value   # we don't want them to be in pixel units
+            flux['y'] = flux['y'].value   #
 
-        flux[f'{k}_aperture_sum'] = v['aperture_sum']
-        flux[f'{k}_err'] = v['aperture_sum_err']
-        flux[f'{k}_bkg_local']  = v['bkg_local']
-        flux[f'{k}_bkg_global'] = v['bkg_global']
-        flux[f'{k}_bkg_median'] = v['bkg_median']
-        #flux[f'{k}_bkg_convole'] = v['bkg_convolve']
-        flux[f'{k}_SIGMA'] = v['SIGMA']
+        flux[f'{line}_flux'] = v[f'{line}_flux'] 
+        flux[f'{line}_flux_err']  = v[f'{line}_flux_err']
+
+        # linemaps are already MW extinction corrected (OIII sum is not) 
+        if line=='OIII5006':
+            rc = pyneb.RedCorr(R_V=3.1,E_BV=Ebv,law='CCM89')
+            flux['OIII5006_flux'] *= rc.getCorr(5006)
+            # the new [OIII] fluxes use the DAP [OIII] errors and hence are already extinction corrected
+            #flux['OIII5006_flux_err'] *= rc.getCorr(5006)
+            logger.info(f'lambda{wavelength}: Av={-2.5*np.log10(1/rc.getCorr(5006)):.2f}')
+
+        # those columns are only needed for tests
+        if False:
+            flux[f'{line}_aperture_sum'] = v['aperture_sum']
+            flux[f'{line}_bkg_local']  = v['bkg_local']
+            flux[f'{line}_bkg_median'] = v['bkg_median']
+            #flux[f'{k}_bkg_convole'] = v['bkg_convolve']
+        flux[f'{line}_SIGMA'] = v['SIGMA']
 
     # the internal extinction correction based on the balmer decrement
-    rc = pyneb.RedCorr(R_V=3.1,law='CCM89')
-    rc.setCorr(obs_over_theo= flux['HA6562']/flux['HB4861'] / 2.86, wave1=6562.81, wave2=4861.33)
-    rc.E_BV[(rc.E_BV<0) | (flux['HB4861']<3*flux['HB4861_err']) |  (flux['HA6562']<3*flux['HA6562_err'])] = 0
-    flux['EBV_balmer'] = rc.E_BV
-    for line in lines:
-        wavelength = int(re.findall(r'\d{4}', line)[0])
-        flux[f'{line}_corr'] = flux[line] * rc.getCorr(wavelength)
-        flux[f'{line}_corr_err'] = flux[f'{line}_err'] * rc.getCorr(wavelength)
-
+    # we do not calculate an error of E(B-V) and hance also do not account for this in the corrected errors
+    if 'HB4861' in lines and 'HA6562' in lines:
+        logger.info('correction for internal extinction with balmer decrement')
+        rc = pyneb.RedCorr(R_V=3.1,law='CCM89')
+        rc.setCorr(obs_over_theo= flux['HA6562_flux']/flux['HB4861_flux'] / 2.86, wave1=6562.81, wave2=4861.33)
+        rc.E_BV[(rc.E_BV<0) | (flux['HB4861_flux']<3*flux['HB4861_flux_err']) |  (flux['HA6562_flux']<3*flux['HA6562_flux_err'])] = 0
+        flux['EBV_balmer'] = rc.E_BV
+        for line in lines:
+            wavelength = int(re.findall(r'\d{4}', line)[0])
+            flux[f'{line}_flux_corr'] = flux[f'{line}_flux'] * rc.getCorr(wavelength)
+            flux[f'{line}_flux_corr_err'] = flux[f'{line}_flux_err'] * rc.getCorr(wavelength)
 
     logger.info('all flux measurements completed')
 
