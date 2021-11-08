@@ -186,12 +186,53 @@ def rainbow_text(x, y, strings, colors, orientation='horizontal',
             t = text.get_transform() + Affine2D().translate(0, ex.height)
 
 
-def radial_profile(data, center):
+def radial_profile(data, center=None):
+    '''Measure the radial profile of an image
+
+    this function returns the mean value of data in annuli around center
+
+    taken from here:
+    https://discuss.dizzycoding.com/most-efficient-way-to-calculate-radial-profile/
+
+
+    Parameters
+    ----------
+
+    data : array
+        A 2D array from which the profile is measured
+
+    center : tuple
+        The center of the annuli (middle of the image if not provided)
+    '''
+
+    if not center:
+        center = np.array(data.shape)/2
+
     y, x = np.indices((data.shape))
     r = np.sqrt((x - center[0])**2 + (y - center[1])**2)
     r = r.astype(np.int)
+
+    mean,median,std = sigma_clipped_stats(data)
+
 
     tbin = np.bincount(r.ravel(), data.ravel())
     nr = np.bincount(r.ravel())
     radialprofile = tbin / nr
     return radialprofile
+
+from astropy.stats import sigma_clipped_stats
+
+def growth_curve(data, center):
+    '''
+    
+    '''
+
+    y, x = np.indices((data.shape))
+    r = np.sqrt((x - center[0])**2 + (y - center[1])**2)
+    r = r.astype(np.int)
+    
+    mean,median,std = sigma_clipped_stats(data)
+
+    tbin = np.bincount(r.ravel(), (data).ravel())
+    curve = np.cumsum(tbin) 
+    return curve

@@ -174,7 +174,7 @@ def measure_flux(LineMaps,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,bac
                 # select the pixels inside the annulus and calulate sigma clipped median
                 annulus_data = mask.multiply(data)
                 annulus_data_1d = annulus_data[mask.data > 0]
-                _, median_sigclip , _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=3,maxiters=3)          
+                mean_sigclip, median_sigclip , _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=3,maxiters=10)          
                 bkg_median.append(median_sigclip)
 
             # save bkg_median in case we need it again and multiply background with size of the aperture

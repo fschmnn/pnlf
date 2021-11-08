@@ -146,7 +146,8 @@ def classification_map(galaxy,parameters,tbl,filename):
                                       axesA=ax2, axesB=ax3, color="black",linewidth=0.3)
     ax3.add_artist(con)
     plt.subplots_adjust(wspace=0.06)
-    plt.savefig(filename,bbox_inches='tight',dpi=600)
+    if filename:
+        plt.savefig(filename,bbox_inches='tight',dpi=600)
 
 
 def classification_map_small(galaxy,parameters,tbl,filename):

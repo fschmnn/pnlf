@@ -22,7 +22,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     
     we use four criteria to distinguish between PN, HII regions and SNR:
     
-    criteria1 -> emperical upper limit
+    criteria1 -> emperical upper limit (currently not used)
     4 > log10 [OIII] / (Ha +[NII])
     
     criteria2 -> HII regions
@@ -34,7 +34,7 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     criteria4 -> velocity dispersion
 
     The second criteria requires the absolute magnitude of the objects. 
-    Therefor the distance_modulus
+    Therefor the distance_modulus is needed as an input to this function
     
     
     Parameters
@@ -72,23 +72,20 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     # calculate the absolute magnitude based on a first estimate of the distance modulus 
     table['MOIII'] = table['mOIII'] - distance_modulus
     
-    # we need the the sum of the [SII] lines
-    table['SII'] = table['SII6716']+table['SII6730']
-    table['SII_err'] = np.sqrt(table['SII6716_err']**2+table['SII6730_err']**2)
+    # we need the the sum of the [SII] lines for the SNR criteria
+    table['SII_flux'] = table['SII6716_flux']+table['SII6730_flux']
+    table['SII_flux_err'] = np.sqrt(table['SII6716_flux_err']**2+table['SII6730_flux_err']**2)
 
-    # we set negative fluxes to the error (0 would cause errors because we work with ratios)
+    # we set negative fluxes and none detections to the 3*error (0 would cause errors because we work with ratios)
     for col in ['HB4861','OIII5006','HA6562','NII6583','SII']:
-        # median of error maps is a factor of 3 smaller than std of maps (error is already increased)
-        detection = (table[col]>0) & (table[col]>3*table[f'{col}_err'])
-        #logger.info(f'{np.sum(~detection)} not detected in {col}')
-        #table[col][np.where(table[col]<0)] = table[f'{col}_err'][np.where(table[col]<0)] 
-        table[col][np.where(~detection)] = 3*table[f'{col}_err'][np.where(~detection)] 
+        detection = (table[f'{col}_flux']>0) & (table[f'{col}_flux']>3*table[f'{col}_flux_err'])
+        table[f'{col}_flux'][np.where(~detection)] = 3*table[f'{col}_flux_err'][np.where(~detection)] 
         table[f'{col}_detection'] = detection
 
     # calculate velocity dispersion (use line with best signal to noise)
-    table['OIII5006_S/N'] =  table['OIII5006']/table['OIII5006_err']
-    table['HA6562_S/N']   =  table['HA6562']/table['HA6562_err']
-    table['SII_S/N']  =  table['SII']/table['SII_err'] 
+    table['OIII5006_S/N'] =  table['OIII5006_flux']/table['OIII5006_flux_err']
+    table['HA6562_S/N']   =  table['HA6562_flux']/table['HA6562_flux_err']
+    table['SII_S/N']  =  table['SII_flux']/table['SII_flux_err'] 
 
     # we use the Halpha velocity dispersion. the others can behave funny
     table['v_SIGMA']     = table['HA6562_SIGMA']
@@ -100,30 +97,28 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     #logger.info('v_sigma: median={:.2f}, median={:.2f}, sig={:.2f}'.format(*sigma_clipped_stats(table['v_SIGMA'][~np.isnan(table['v_SIGMA'])])))
     
     # define ratio of OIII to Halpha and NII for the first criteria (with error). If NII is not detected we assume NII=0.5Halpha
-    table['R']  =  np.log10(table['OIII5006'] / (table['HA6562']+table['NII6583']))
-    table['R'][~table['NII6583_detection']] = np.log10(table['OIII5006'][~table['NII6583_detection']] / (1.5*table['HA6562'][~table['NII6583_detection']])) 
-    table['dR'] = np.sqrt((table['OIII5006_err'] / table['OIII5006'])**2 + (table['HA6562_err'] / (table['HA6562']+table['NII6583']))**2 + (table['NII6583_err'] / (table['HA6562']+table['NII6583']))**2) /np.log(10) 
+    table['logR']  =  np.log10(table['OIII5006_flux'] / (table['HA6562_flux']+table['NII6583_flux']))
+    table['logR'][~table['NII6583_detection']] = np.log10(table['OIII5006_flux'][~table['NII6583_detection']] / (1.5*table['HA6562_flux'][~table['NII6583_detection']])) 
+    table['dlogR'] = np.sqrt((table['OIII5006_flux_err'] / table['OIII5006_flux'])**2 + (table['HA6562_flux_err'] / (table['HA6562_flux']+table['NII6583_flux']))**2 + (table['NII6583_flux_err'] / (table['HA6562_flux']+table['NII6583_flux']))**2) /np.log(10) 
 
     # define criterias to exclude non PN objects
     criteria = {}
 
     if True:
-        # this ignores the uncertainties
-        #criteria['HII'] = (10**(table['R']) < 1.6)
-        criteria[''] = (4 < (table['R'])) #& (table['HA6562_detection'])
-        criteria['HII'] = (table['R'] < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'] | table['NII6583_detection'])
+        # this criteria should be log(4) which would remove a lot of objects. no idea why so many objects have such high line ratios
+        #criteria[''] = (np.log10(4) < (table['R'])) #& (table['HA6562_detection'])
+        criteria['HII'] = (table['logR'] < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'] | table['NII6583_detection'])
+
     elif True:
+        # here we retain things in the sample if they are within 3 sigma
+        #criteria[''] = (4 < (table['R']- 3*table['dR'])) #& (table['HA6562_detection'])
+        criteria['HII'] = (table['logR'] + table['dlogR'] < -0.37*(table['MOIII']+table['dmOIII']) - 1.16) #& (table['HA6562_detection'] | table['NII6583_detection'])
+    else:
         # use HB as a criteria (because this line is close to OIII, extinction should not be an issue)
         criteria['HII'] = (np.log10(table['OIII5006'] / table['HB4861']) < -0.37*table['MOIII'] - 0.71) & table['HB4861_detection'] 
-    else:
-        # here we retain things in the sample if they are within 3 sigma
-        criteria[''] = (4 < (table['R']- 3*table['dR'])) #& (table['HA6562_detection'])
-        criteria['HII'] = (table['R'] + 3*table['dR'] < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'] | table['NII6583_detection'])
 
-    criteria['SNR'] = ((table['HA6562']) /table['SII'] < 2.5) & (table['SII_detection']) 
-    # only apply this criteria if signal to noise is < 3
-    # we underestimate the error and hence S/N is too big. This justifies using 3 instead of 1
-    criteria['SNR'] |= ((table['v_SIGMA']>100) & (table['v_SIGMA_S/N']>3)) # & (table['HA6562_S/N']<3)
+    criteria['SNR'] = ((table['HA6562_flux']) /table['SII_flux'] < 2.5) & (table['SII_detection']) 
+    #criteria['SNR'] |= (table['v_SIGMA']>100) & table['SII_detection']
 
     # objects that would be classified as PN by narrowband observations
     table['SNRorPN'] = criteria['SNR'] & ~criteria['HII']
@@ -133,11 +128,9 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
 
     # remove rows with NaN values in some columns
     mask =  np.ones(len(table), dtype=bool)
-    for col in ['HB4861','OIII5006','HA6562','NII6583','SII']:
+    for col in ['HB4861_flux','OIII5006_flux','HA6562_flux','NII6583_flux','SII_flux']:
         mask &=  ~np.isnan(table[col])
     table['type'][np.where(~mask)] = 'NaN'
-    #table = table[mask]
-    #logger.info(f'{np.sum(~mask)} rows contain NaN values')
 
     # purely for information
     mask = table['mOIII']< completeness_limit
@@ -494,7 +487,7 @@ def estimate_uncertainties_from_SII(tbl,plot=False):
     to use Francescos catalogue instead:
 
     ```
-    with fits.open(data_ext/'MUSE_DR2'/'Nebulae catalogue' / 'Nebulae_Catalogue_DR2_native.fits') as hdul:
+    with fits.open(data_ext/'Products'/'Nebulae catalogue' / 'Nebulae_catalogue_v2.fits') as hdul:
         nebulae = Table(hdul[1].data)
     nebulae['gal_name'][nebulae['gal_name']=='NGC628'] = 'NGC0628'
     nebulae = nebulae[(nebulae["flag_edge"] == 0) & (nebulae["flag_star"] == 0) & (nebulae["BPT_NII"] == 0) & (nebulae["BPT_SII"] == 0) & (nebulae["BPT_OI"] == 0) & (nebulae['HA6562_SIGMA'] < 100)]

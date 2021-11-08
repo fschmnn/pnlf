@@ -199,6 +199,8 @@ def plot_distances(name,distance,plus,minus,distances,filename=None):
 
     mpl.use('pgf')
     mpl.rcParams['pgf.preamble'] = [r'\usepackage[hidelinks]{hyperref}',]
+    logger.warning('Backend changed to PGF')
+
 
     row_height = 0.10
     height = row_height*(4+len(distances))

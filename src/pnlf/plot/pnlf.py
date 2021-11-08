@@ -262,7 +262,7 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
     if completeness and mu:
         ax1.axvline(completeness-mu,ls='--',c='grey',lw=0.5)
     ax1.axvline(Mmax,ls='--',c='grey',lw=0.5)
-
+    
     for t in ['HII','PN','SNR']:
         tbl = table[table['type']==t]
         print(f'{t}: {len(tbl[tbl["mOIII"]<completeness])} objects')
@@ -272,31 +272,34 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
         if t=='PN':
             # indicate for which PN we don't have a detection in HA6562
             tmp = tbl[tbl['HA6562_detection']]
-            ax1.errorbar(tmp['MOIII'],10**tmp['R'],marker='o',ms=3,mfc=tab10[0],mec=tab10[0],ls='none',label=t) 
+            ax1.errorbar(tmp['MOIII'],10**tmp['logR'],marker='o',ms=3,mfc=tab10[0],mec=tab10[0],ls='none',label=t) 
             #ax1.errorbar(tbl['mOIII']-mu,1.11*10**tbl['R'],
             #             marker=r'$\uparrow$',ms=4,mec=tab10[0],ls='none')  
 
             tmp = tbl[~tbl['HA6562_detection']]
-            ax1.errorbar(tmp['mOIII']-mu,1.18*10**tmp['R'],
+            ax1.errorbar(tmp['mOIII']-mu,1.18*10**tmp['logR'],
                          marker=r'$\uparrow$',ms=4,mec=tab10[0],ls='none')  
-            ax1.errorbar(tmp['MOIII'],10**tmp['R'],**style[t]) 
+            ax1.errorbar(tmp['MOIII'],10**tmp['logR'],**style[t]) 
         else:
-            ax1.errorbar(tbl['MOIII'],10**tbl['R'],**style[t],label=t) 
+            ax1.errorbar(tbl['MOIII'],10**tbl['logR'],**style[t],label=t) 
 
         #if t=='SNR':
         #   tbl = tbl[tbl['SNRorPN']] 
         #   print(f'SNR or PN: {len(tbl[tbl["mOIII"]<completeness])} objects')
         #   ax1.errorbar(tbl['mOIII']-mu,tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']), marker='o',ms=2,mfc='black',mec='black',ls='none') 
    
+
     # objects that were rejeceted by eye
     tbl = table[table['overluminous']]
-    ax1.errorbar(tbl['MOIII'],tbl['OIII5006']/(tbl['HA6562']+tbl['NII6583']),marker='o',ms=3,ls='none',color='tab:green') 
+    ax1.errorbar(tbl['MOIII'],tbl['OIII5006_flux']/(tbl['HA6562_flux']+tbl['NII6583_flux']),marker='o',ms=3,ls='none',color='tab:green') 
 
     ax1.set(xlim=[-5,np.ceil(completeness-mu)-0.7],
            ylim=[0.03,200],
            yscale='log',
            xlabel=r'$M_{[\mathrm{O}\,\tiny{\textsc{iii}}]}$',
-           ylabel=r'$I_{[\mathrm{O}\,\tiny{\textsc{iii}}]} \; /\;(I_{\mathrm{H}\,\alpha+{[\mathrm{N}\,\tiny{\textsc{ii}}]}})$')
+           ylabel=r'$I_{[\mathrm{O}\,\tiny{\textsc{iii}}]} \; /\;(I_{\mathrm{H}\,\alpha+{[\mathrm{N}\,\tiny{\textsc{ii}}]}})$'
+           )
+
     
     ax1.yaxis.set_major_formatter(mpl.ticker.FuncFormatter(lambda y, _: '{:.16g}'.format(y)))
 
@@ -305,7 +308,8 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
         xlim1,xlim2 = ax1.get_xlim()
         ax1t.set_xticks(np.arange(np.ceil(xlim1+mu),np.floor(xlim2+mu)+1),minor=False)
         ax1t.set(xlim   = [xlim1+mu,xlim2+mu],
-                xlabel = r'$m_{[\mathrm{O}\,\tiny{\textsc{iii}}]}$')
+                xlabel = r'$m_{[\mathrm{O}\,\tiny{\textsc{iii}}]}$'
+                )
 
     # ------------------------------------------------
     # middle plot Ha/[NII] over Ha/[SII]
@@ -314,8 +318,7 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
     for t in ['HII','SNR','PN']:
         tbl = table[(table['type']==t) & (table['HA6562_detection'] | table['HA6562_detection'])]
 
-
-        xerr = np.sqrt( (tbl['SII_err']/tbl['SII'])**2 + (tbl['HA6562_err']/tbl['HA6562'])**2 ) / np.log(10)
+        xerr = np.sqrt( (tbl['SII_flux_err']/tbl['SII_flux'])**2 + (tbl['HA6562_flux_err']/tbl['HA6562_flux'])**2 ) / np.log(10)
 
         if t=='PN':
             # indicate for which PN we don't have a detection in HA6562
@@ -325,20 +328,20 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
             
             tmp = tbl[~tbl['SII_detection']]
 
-            ax2.errorbar(-0.04+np.log10(tmp['SII']/tmp['HA6562']),np.log10(tmp['NII6583']/tmp['HA6562']),
+            ax2.errorbar(-0.04+np.log10(tmp['SII_flux']/tmp['HA6562_flux']),np.log10(tmp['NII6583_flux']/tmp['HA6562_flux']),
                          marker=r'$\leftarrow$',ms=4,mec=tab10[0],ls='none')  
 
-            ax2.errorbar(np.log10(tmp['SII']/tmp['HA6562']),np.log10(tmp['NII6583']/tmp['HA6562']),
+            ax2.errorbar(np.log10(tmp['SII_flux']/tmp['HA6562_flux']),np.log10(tmp['NII6583_flux']/tmp['HA6562_flux']),
                          **style[t],label=t) 
         else:
-            ax2.errorbar(np.log10(tbl['SII']/tbl['HA6562']),np.log10(tbl['NII6583']/tbl['HA6562']),
+            ax2.errorbar(np.log10(tbl['SII_flux']/tbl['HA6562_flux']),np.log10(tbl['NII6583_flux']/tbl['HA6562_flux']),
                      **style[t],label=t)
         #if t=='SNR':
         #   tbl = tbl[tbl['SNRorPN']] 
         #   ax2.errorbar(np.log10(tbl['SII']/tbl['HA6562']),np.log10(tbl['NII6583']/tbl['HA6562']), marker='o',ms=2,mfc='black',mec='black',ls='none') 
 
     tbl = table[table['overluminous']]
-    ax2.errorbar(np.log10(tbl['SII']/tbl['HA6562']),np.log10(tbl['NII6583']/tbl['HA6562']),marker='o',ms=3,ls='none',color='tab:green') 
+    ax2.errorbar(np.log10(tbl['SII_flux']/tbl['HA6562_flux']),np.log10(tbl['NII6583_flux']/tbl['HA6562_flux']),marker='o',ms=3,ls='none',color='tab:green') 
 
     ax2.legend()
 
@@ -354,7 +357,8 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
            ylim=[-1.5,1],
            #yscale='log',
            xlabel=r'$\log_{10} \left(I_{[\mathrm{S}\,\tiny{\textsc{ii}}]} \; /\; I_{\mathrm{H}\,\alpha} \right)$',
-           ylabel=r'$\log_{10} (I_{[\mathrm{N}\,\tiny{\textsc{ii}}]} \; /\; I_{\mathrm{H}\,\alpha})$')    
+           ylabel=r'$\log_{10} (I_{[\mathrm{N}\,\tiny{\textsc{ii}}]} \; /\; I_{\mathrm{H}\,\alpha})$'
+           )    
     ax2.xaxis.set_major_locator(mpl.ticker.MultipleLocator(0.5))
     ax2.yaxis.set_major_locator(mpl.ticker.MultipleLocator(0.5))
     ax2.xaxis.set_minor_locator(mpl.ticker.MultipleLocator(0.1))
@@ -383,6 +387,5 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
         #savefig(filename.with_suffix('.pgf'),bbox_inches='tight')
         savefig(filename.with_suffix('.pdf'),bbox_inches='tight')
 
-    if not final:
-        plt.show()
+    plt.show()
 

@@ -37,8 +37,8 @@ logger = logging.getLogger(__name__)
 np.warnings.filterwarnings('ignore')
 
 def detect_unresolved_sources(
-    self : ReadLineMaps,
-    line : list,
+    LineMaps : ReadLineMaps,
+    line : str,
     StarFinder,
     threshold : float=3.,
     oversize: float=1.,
@@ -50,11 +50,11 @@ def detect_unresolved_sources(
     
     Parameters
     ----------
-    self : obj. ReadLineMaps
+    LineMaps : obj. ReadLineMaps
         Object in which to search for unresolved sources.
         
     line : string
-        name of a line map in self that is used for the detection.
+        name of a line map in LineMaps that is used for the detection.
         
     StarFinder :
         astropy StarFinder (DAO or IRAF)
@@ -65,6 +65,9 @@ def detect_unresolved_sources(
     oversize :
         increase the size of the PSF (becaues it is a Moffat)
 
+    exclude_region : array
+        a mask of the regions that sould be excluded from the search
+
     save : bool
         save the result is to a file in `reports/catalogues/`
 
@@ -72,7 +75,7 @@ def detect_unresolved_sources(
         other parameters are passed to StarFinder
     '''
     
-    if not isinstance(self,ReadLineMaps):
+    if not isinstance(LineMaps,ReadLineMaps):
         logger.warning('input should be of type ReadLineMaps')
     
     daoargs = {k:kwargs.pop(k) for k in dict(kwargs) if k in inspect.signature(DAOStarFinder).parameters.keys()}
@@ -81,17 +84,17 @@ def detect_unresolved_sources(
         logger.warning(f'unused kwargs: {k}={v}')
 
     # for convenience only, to make accessing the data easier
-    data = getattr(self,line)
-    err  = getattr(self,f'{line}_err')
-    PSF  = getattr(self,'PSF') 
+    data = getattr(LineMaps,line)
+    err  = getattr(LineMaps,f'{line}_err')
+    PSF  = getattr(LineMaps,'PSF') 
 
     if not np.any(exclude_region):
         exclude_region = np.zeros(data.shape,dtype=bool)
     else:
         logger.info(f'masking {np.sum(exclude_region)/np.prod(exclude_region.shape)*100:.2f} % of the image')
 
-    logger.info(f'searching for sources in {self.name} with [{line}] line map (using ' + \
-          str(StarFinder).split('.')[-1][:-2] + ')\n' )
+    logger.info(f'searching for sources in {LineMaps.name} with [{line}] line map (using ' + \
+          str(StarFinder).split('.')[-1][:-2] + ')' )
     logger.info(','.join([f'{k}: {v} ' for k,v in daoargs.items()])) 
     #mean, median, std = sigma_clipped_stats(data[~np.isnan(PSF)], sigma=3.,maxiters=None)
 
@@ -103,7 +106,7 @@ def detect_unresolved_sources(
 
     # loop over all pointings with different PSFs
     pointings = np.unique(PSF[~np.isnan(PSF)])
-    logger.info(f'searching for sources in {len(pointings)} pointings')
+    logger.info(f'searching for sources in {len(pointings)} pointings\n')
     
     # header for the print information
     logger.info(f'{"fwhm":>9}{"#N":>5}{"mean":>8}{"median":>8}{"std":>8}')
@@ -148,15 +151,12 @@ def detect_unresolved_sources(
     peak_tbl.rename_column('ycentroid','y')
           
     # calculate astronomical coordinates
-    peak_tbl['SkyCoord'] = SkyCoord.from_pixel(peak_tbl['x'],peak_tbl['y'],self.wcs)
+    peak_tbl['SkyCoord'] = SkyCoord.from_pixel(peak_tbl['x'],peak_tbl['y'],LineMaps.wcs)
     peak_tbl['RaDec'] = peak_tbl['SkyCoord'].to_string(style='hmsdms',precision=2)
-
-    # save the result to the object
-    #setattr(self,'peaks_tbl',peak_tbl)
 
     # we save the found positions to a file
     if save:
-        filename = basedir / 'data' / 'interim' / f'peaks_{self.name}.txt'
+        filename = basedir / 'data' / 'interim' / f'peaks_{LineMaps.name}.txt'
         with open(filename,'w',newline='\n') as f:
             ascii.write(peak_tbl[['id','x','y','peak','flux','RaDec','fwhm']],
                         f,format='fixed_width',overwrite=True)

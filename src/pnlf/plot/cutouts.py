@@ -88,10 +88,10 @@ def cutout_with_profile(self,table,size=32,diagnostics=False,filename=None):
             ax3.plot(MOIII,OIII_Ha,c='black',lw=0.6)
             ax3.axhline(10**4)
             ax3.axvline(-4.47,ls='--',c='grey',lw=0.5)
-            ax3.scatter(row['mOIII']-mu,row['OIII5006']/(row['HA6562']+row['NII6583']),marker='o',s=5,color='black') 
+            ax3.scatter(row['mOIII']-mu,row['OIII5006_flux']/(row['HA6562_flux']+row['NII6583_flux']),marker='o',s=5,color='black') 
 
             if not row['HA6562_detection']:
-                ax3.errorbar(row['mOIII']-mu,1.11*row['OIII5006']/(row['HA6562']+row['NII6583']),
+                ax3.errorbar(row['mOIII']-mu,1.11*row['OIII5006_flux']/(row['HA6562_flux']+row['NII6583_flux']),
                                 marker=r'$\uparrow$',ms=4,mec='black',ls='none') 
             ax3.set(xlim=[-5,-1],ylim=[0.03,200],yscale='log')
             ax3.set_yticks([])
@@ -99,13 +99,13 @@ def cutout_with_profile(self,table,size=32,diagnostics=False,filename=None):
 
             # plot the line ratio 
             ax4 = ax1.inset_axes([0.66, 0.01, 0.32, 0.25])
-            ax4.scatter(np.log10(row['HA6562']/row['SII']),np.log10(row['HA6562']/row['NII6583']),marker='o',s=5,color='black')
+            ax4.scatter(np.log10(row['HA6562_flux']/row['SII_flux']),np.log10(row['HA6562_flux']/row['NII6583_flux']),marker='o',s=5,color='black')
             ax4.axvline(np.log10(2.5),c='black',lw=0.6) 
 
             if not row['HA6562_detection'] or not row['SII_detection']:
-                ax4.errorbar(0.03+np.log10(row['HA6562']/row['SII']),np.log10(row['HA6562']/row['NII6583']),
+                ax4.errorbar(0.03+np.log10(row['HA6562_flux']/row['SII_flux']),np.log10(row['HA6562_flux']/row['NII6583_flux']),
                             marker=r'$\!\rightarrow$',ms=4,mec='black',ls='none') 
-            #ax4.set(xlim=[-0.5,1.5],ylim=[-0.5,1.5])
+            ax4.set(xlim=[-0.5,1.5],ylim=[-0.5,1.5])
             ax4.set_yticks([])
             ax4.set_xticks([])
 
@@ -130,7 +130,7 @@ def cutout_with_profile(self,table,size=32,diagnostics=False,filename=None):
         # remove the empty axes at the bottom
         ax = next(axes_iter)
         ax.remove()
-    
+
     plt.subplots_adjust(wspace=-0.01,hspace=0.05)
     if filename:
         #plt.savefig(filename.with_suffix('.png'),dpi=600)
