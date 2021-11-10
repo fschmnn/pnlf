@@ -17,7 +17,7 @@ from .old import MaximumLikelihood
 logger = logging.getLogger(__name__)
 
 
-def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True):
+def emission_line_diagnostics(table,distance_modulus,completeness_limit,distance_modulus_err=0.1,detection_limit=5):
     '''Classify objects based on their emission lines 
     
     we use four criteria to distinguish between PN, HII regions and SNR:
@@ -49,8 +49,9 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
        A first guess of the distance modulus (used for diagnostics)
        distance_modulus = m - M
        
-    SNR : bool
-        remove supernovae remnants based on SII to HA ratio
+    detection_limit : float
+        how many sigma are needed for a detection (default=3). Non 
+        detections are set to detection_limit*uncertainty. 
 
     Returns
     -------
@@ -71,15 +72,16 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
 
     # calculate the absolute magnitude based on a first estimate of the distance modulus 
     table['MOIII'] = table['mOIII'] - distance_modulus
-    
+    table['dMOIII'] = np.sqrt(table['dmOIII']**2 + distance_modulus_err**2)
+
     # we need the the sum of the [SII] lines for the SNR criteria
     table['SII_flux'] = table['SII6716_flux']+table['SII6730_flux']
     table['SII_flux_err'] = np.sqrt(table['SII6716_flux_err']**2+table['SII6730_flux_err']**2)
 
-    # we set negative fluxes and none detections to the 3*error (0 would cause errors because we work with ratios)
+    # we set negative fluxes and none detections to th error (0 would cause errors because we work with ratios)
     for col in ['HB4861','OIII5006','HA6562','NII6583','SII']:
-        detection = (table[f'{col}_flux']>0) & (table[f'{col}_flux']>3*table[f'{col}_flux_err'])
-        table[f'{col}_flux'][np.where(~detection)] = 3*table[f'{col}_flux_err'][np.where(~detection)] 
+        detection = (table[f'{col}_flux']>0) & (table[f'{col}_flux']>detection_limit*table[f'{col}_flux_err'])
+        table[f'{col}_flux'][np.where(~detection)] = table[f'{col}_flux_err'][np.where(~detection)] 
         table[f'{col}_detection'] = detection
 
     # calculate velocity dispersion (use line with best signal to noise)
@@ -107,19 +109,21 @@ def emission_line_diagnostics(table,distance_modulus,completeness_limit,SNR=True
     if True:
         # this criteria should be log(4) which would remove a lot of objects. no idea why so many objects have such high line ratios
         #criteria[''] = (np.log10(4) < (table['R'])) #& (table['HA6562_detection'])
-        criteria['HII'] = (table['logR'] < -0.37*table['MOIII'] - 1.16) & (table['HA6562_detection'] | table['NII6583_detection'])
-
+        criteria['HII'] = (table['logR'] < -0.37*(table['MOIII']+table['dMOIII']) - 1.16) & (table['HA6562_detection'])
+        criteria['SNR'] = (table['HA6562_flux']/table['SII_flux'] < 2.5) & (table['SII_detection']) 
     elif True:
-        # here we retain things in the sample if they are within 3 sigma
+        # here we retain things in the sample if they are within 1 sigma
         #criteria[''] = (4 < (table['R']- 3*table['dR'])) #& (table['HA6562_detection'])
         criteria['HII'] = (table['logR'] + table['dlogR'] < -0.37*(table['MOIII']+table['dmOIII']) - 1.16) #& (table['HA6562_detection'] | table['NII6583_detection'])
+        HAoverSII = table['HA6562_flux']/table['SII_flux']
+        HAoverSII_err = HAoverSII * np.sqrt((table['HA6562_flux_err']/table['HA6562_flux'])**2 + (table['SII_flux_err']/table['SII_flux'])**2)
+        criteria['SNR'] = ((HAoverSII + HAoverSII_err) < 2.5)
+
     else:
         # use HB as a criteria (because this line is close to OIII, extinction should not be an issue)
         criteria['HII'] = (np.log10(table['OIII5006'] / table['HB4861']) < -0.37*table['MOIII'] - 0.71) & table['HB4861_detection'] 
 
-    criteria['SNR'] = ((table['HA6562_flux']) /table['SII_flux'] < 2.5) & (table['SII_detection']) 
     #criteria['SNR'] |= (table['v_SIGMA']>100) & table['SII_detection']
-
     # objects that would be classified as PN by narrowband observations
     table['SNRorPN'] = criteria['SNR'] & ~criteria['HII']
 

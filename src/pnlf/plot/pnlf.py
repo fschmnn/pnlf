@@ -217,9 +217,7 @@ def plot_pnlf(data,mu,completeness,mask=None,binsize=0.25,mlow=None,mhigh=None,M
         fig = ax1.get_figure()
 
     ax1 = _plot_pnlf(data,mu,completeness,mask=mask,binsize=binsize,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax1,ms=2)
-    ax2 = _plot_cum_pnlf(data,mu,completeness,binsize=None,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax2,ms=0.5)
-
-
+    ax2 = _plot_cum_pnlf(data[~mask],mu,completeness,binsize=None,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax2,ms=0.5)
 
     plt.tight_layout()
 

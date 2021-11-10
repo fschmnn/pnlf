@@ -36,8 +36,15 @@ logger = logging.getLogger(__name__)
 
 
 def measure_flux(LineMaps,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,background='local',extinction='MW'):
-    '''
-    measure flux for all lines in lines
+    '''measure flux for all lines in lines
+
+    for each position in peak_tbl, the flux inside an aperture of 
+    `aperture_size` is measured for each line `lines` (if `LineMaps`
+    has an extinsion). The background is estimated from an annulus
+    with a sigma clipped median (both median and mean are reported).
+    The [OIII] fluxes are Milky Way extinction corrected and the 
+    internal extinction is estimated if the Halpha and Hbeta lines
+    are present.
     
     Parameters
     ----------
@@ -170,16 +177,19 @@ def measure_flux(LineMaps,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,bac
 
             # background from annulus with sigma clipping
             bkg_median = []
+            bgk_mean   = []
             for mask in annulus_masks:
                 # select the pixels inside the annulus and calulate sigma clipped median
                 annulus_data = mask.multiply(data)
                 annulus_data_1d = annulus_data[mask.data > 0]
-                mean_sigclip, median_sigclip , _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=3,maxiters=10)          
+                _, median_sigclip , _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=3,maxiters=10,cenfunc='median')          
+                mean_sigclip, _ , _ = sigma_clipped_stats(annulus_data_1d[~np.isnan(annulus_data_1d)],sigma=3,maxiters=10,cenfunc='mean')          
                 bkg_median.append(median_sigclip)
+                bgk_mean.append(mean_sigclip)
 
             # save bkg_median in case we need it again and multiply background with size of the aperture
-            phot['bkg_median'] = np.array(bkg_median) 
-            phot['bkg_local'] = phot['bkg_median'] * aperture.area
+            phot['bkg_median'] = np.array(bkg_median) * aperture.area
+            phot['bkg_mean'] = np.array(bgk_mean) * aperture.area
             
             '''
             # background from annulus with masked sources
@@ -194,14 +204,19 @@ def measure_flux(LineMaps,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,bac
             phot['bkg_local'] = phot['bkg_median'] * aperture.area
             '''
             
-            phot[f'{line}_flux'] = phot['aperture_sum'] - phot['bkg_local']
+            phot[f'{line}_flux'] = phot['aperture_sum'] - phot['bkg_median']
+            phot[f'{line}_flux_raw'] = phot['aperture_sum'] 
+
             # we don't subtract the background from OIII because there is none
-            if line == 'OIII5006_DAP':
-                phot[f'{line}_flux'] = phot['aperture_sum']
+            #if line == 'OIII5006_DAP':
+            #    phot[f'{line}_flux'] = phot['aperture_sum']
 
             # correct for flux that is lost outside of the aperture
             phot[f'{line}_flux'] /= light_in_moffat(r,alpha,gamma)
+            phot[f'{line}_flux_raw'] /= light_in_moffat(r,alpha,gamma)
             phot[f'{line}_flux_err'] = phot['aperture_sum_err'] / light_in_moffat(r,alpha,gamma)
+            phot['bkg_median'] /= light_in_moffat(r,alpha,gamma)
+            phot['bkg_mean'] /= light_in_moffat(r,alpha,gamma)
             #print(f'{fwhm}: {light_in_moffat(r,alpha,gamma):.2f}')
 
             # calculate the average of the velocity dispersion
@@ -252,13 +267,18 @@ def measure_flux(LineMaps,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,bac
 
         flux[f'{line}_flux'] = v[f'{line}_flux'] 
         flux[f'{line}_flux_err']  = v[f'{line}_flux_err']
+        flux[f'{line}_flux_raw'] = v[f'{line}_flux_raw'] 
+        flux[f'{line}_bkg_median'] = v[f'bkg_median'] 
+        flux[f'{line}_bkg_mean'] = v[f'bkg_mean'] 
 
         # linemaps are already MW extinction corrected (OIII sum is not) 
+        # the new [OIII] fluxes use the DAP [OIII] errors and hence are already extinction corrected
         if line=='OIII5006':
             rc = pyneb.RedCorr(R_V=3.1,E_BV=Ebv,law='CCM89')
             flux['OIII5006_flux'] *= rc.getCorr(5006)
-            # the new [OIII] fluxes use the DAP [OIII] errors and hence are already extinction corrected
-            #flux['OIII5006_flux_err'] *= rc.getCorr(5006)
+            flux['OIII5006_flux_raw'] *= rc.getCorr(5006)
+            flux['OIII5006_bkg_median'] *= rc.getCorr(5006)
+            flux['OIII5006_bkg_mean'] *= rc.getCorr(5006)
             logger.info(f'lambda{wavelength}: Av={-2.5*np.log10(1/rc.getCorr(5006)):.2f}')
 
         # those columns are only needed for tests
@@ -281,6 +301,8 @@ def measure_flux(LineMaps,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,bac
             wavelength = int(re.findall(r'\d{4}', line)[0])
             flux[f'{line}_flux_corr'] = flux[f'{line}_flux'] * rc.getCorr(wavelength)
             flux[f'{line}_flux_corr_err'] = flux[f'{line}_flux_err'] * rc.getCorr(wavelength)
+            flux[f'{line}_bkg_median_corr'] = flux[f'{line}_bkg_median'] * rc.getCorr(wavelength)
+            flux[f'{line}_bkg_mean_corr'] = flux[f'{line}_bkg_mean'] * rc.getCorr(wavelength)
 
     logger.info('all flux measurements completed')
 
