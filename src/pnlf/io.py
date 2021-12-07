@@ -20,6 +20,12 @@ from .constants import two_column, arcsec_to_pixel
 
 logger = logging.getLogger(__name__)
 
+class ParameterClass:
+    def __init__(self,name,**kwargs):
+        self.name     = name
+        for k,v in kwargs.items():
+            setattr(self,k,v)
+
 class ReadLineMaps:
     '''load a fits file from the PHANGS--MUSE DAP (the line maps)
     

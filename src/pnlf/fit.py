@@ -73,7 +73,7 @@ class linearMLE:
     def fit(self,p0):
         '''fit using emcee'''
         
-        ndim, nwalkers = 5, 32
+        ndim, nwalkers = 5, 64
         p0 = np.array([p0 + 1e-5 * np.random.randn(ndim) for k in range(nwalkers)])
 
         # Set up the sampler.
@@ -84,7 +84,7 @@ class linearMLE:
 
         # Run the production chain.
         self.sampler.reset()
-        self.sampler.run_mcmc(pos, 1500)
+        self.sampler.run_mcmc(pos, 2000)
 
         flat_samples = self.sampler.get_chain(discard=100, thin=15, flat=True)
         labels = ['m','b','Q','M','lnV']

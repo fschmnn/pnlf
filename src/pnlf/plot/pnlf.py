@@ -216,6 +216,9 @@ def plot_pnlf(data,mu,completeness,mask=None,binsize=0.25,mlow=None,mhigh=None,M
         ax1,ax2 = axes 
         fig = ax1.get_figure()
 
+    if mask is None:
+        mask = np.zeros_like(data,dtype=bool)
+
     ax1 = _plot_pnlf(data,mu,completeness,mask=mask,binsize=binsize,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax1,ms=2)
     ax2 = _plot_cum_pnlf(data[~mask],mu,completeness,binsize=None,mlow=mlow,mhigh=mhigh,Mmax=Mmax,color=color,alpha=alpha,ax=ax2,ms=0.5)
 
@@ -275,7 +278,7 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
             #             marker=r'$\uparrow$',ms=4,mec=tab10[0],ls='none')  
 
             tmp = tbl[~tbl['HA6562_detection']]
-            ax1.errorbar(tmp['mOIII']-mu,1.18*10**tmp['logR'],
+            ax1.errorbar(tmp['MOIII'],1.18*10**tmp['logR'],
                          marker=r'$\uparrow$',ms=4,mec=tab10[0],ls='none')  
             ax1.errorbar(tmp['MOIII'],10**tmp['logR'],**style[t]) 
         else:
@@ -312,7 +315,7 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
     # ------------------------------------------------
     # middle plot Ha/[NII] over Ha/[SII]
     # ------------------------------------------------
-    
+    legend_label = {'HII':r'H\,\textsc{ii}'}
     for t in ['HII','SNR','PN']:
         tbl = table[(table['type']==t) & (table['HA6562_detection'] | table['HA6562_detection'])]
 
@@ -333,7 +336,7 @@ def plot_emission_line_ratio(table,mu=None,completeness=None,filename=None):
                          **style[t],label=t) 
         else:
             ax2.errorbar(np.log10(tbl['SII_flux']/tbl['HA6562_flux']),np.log10(tbl['NII6583_flux']/tbl['HA6562_flux']),
-                     **style[t],label=t)
+                     **style[t],label=legend_label.get(t,t))
         #if t=='SNR':
         #   tbl = tbl[tbl['SNRorPN']] 
         #   ax2.errorbar(np.log10(tbl['SII']/tbl['HA6562']),np.log10(tbl['NII6583']/tbl['HA6562']), marker='o',ms=2,mfc='black',mec='black',ls='none') 

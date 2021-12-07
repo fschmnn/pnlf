@@ -284,7 +284,7 @@ class MaximumLikelihood1D:
 
         if not hasattr(self,'x'):
             logger.warning('run fit function first. I do it for you this time.')
-            x,dp,dm=self.fit(28        )
+            x,dp,dm=self.fit(28)
         else:
             x,dp,dm = self.x,self.plus,self.minus
         
@@ -318,6 +318,9 @@ class MaximumLikelihood1D:
 
         ax2.set_xlabel(r'$(m-M)$ / mag')
         ax2.set_ylabel('cumulative likelihood')
+        if limits:
+            ax1.set(xlim=limits)
+            ax2.set(xlim=limits)
         ax1.set_title(f'{self.x:.3f}+{dp:.3f}-{dm:.3f}')
         ax1.annotate(f'{len(self.data)} data points',(0.02,0.87),xycoords='axes fraction',fontsize=8)
         plt.subplots_adjust(hspace = .001)      

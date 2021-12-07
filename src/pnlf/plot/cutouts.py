@@ -72,6 +72,7 @@ def cutout_with_profile(self,table,size=32,diagnostics=False,filename=None):
         aperture = CircularAperture((size/2+(x-int(x)),size/2+(y-int(y))),aperture_size)
         aperture.plot(color='tab:red',lw=0.8,axes=ax1)
         ax2.axvline(aperture_size,color='tab:red',lw=0.5)
+        ax2.axhline(0,color='black',lw=0.5)
         #fwhm = aperture_size/2.5*2
         #ax2.axvline(2*fwhm,color='gray',lw=0.8)
         #ax2.axvline(np.sqrt((4*fwhm)**2+(1.25*fwhm)**2),color='gray',lw=0.8)

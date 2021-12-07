@@ -407,3 +407,38 @@ def r25(x,y,centre,pa,inc,r25):
 
     pass
     
+
+from astropy.coordinates import match_coordinates_sky
+
+def merge_catalogues(catalogues: list,threshold=1*u.arcsec):
+    '''merge multiple catalogues based on their position in the sky
+    
+    does not work yet
+    '''
+
+    for catalogue in catalogues:
+        if 'SkyCoord' not in catalogue.columns:
+            raise ValueError('catalogue must have column `SkyCoord')
+    
+    # we start with the first catalogue for our master catalogue
+    merged = catalogues[0]
+    merged['id_1'] = np.arange(len(merged),dtype=float)
+    
+    for i,catalogue in enumerate(catalogues[1:],start=2):
+        # create a unique ID for the catalogue
+        catalogue[f'id_{i}'] = np.arange(len(catalogue),dtype=float)
+
+        # match the two catalogues (two ojbects that are closer than threshold)
+        idx,sep,_ = match_coordinates_sky(merged['SkyCoord'],catalogue['SkyCoord'])
+        merged[f'id_{i}'] = catalogue[idx][f'id_{i}']
+        merged[f'id_{i}'][sep>threshold] = np.nan
+        catalogue.rename_column('SkyCoord',f'SkyCoord_{i}')
+        
+        merged = join(merged,catalogue,keys=f'id_{i}',join_type='outer')
+    
+    # remove the id columns
+    for i in range(len(catalogues)):
+        del merged[f'id_{i}']
+                   
+    return merged
+
