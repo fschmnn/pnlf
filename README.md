@@ -1,6 +1,6 @@
 # pnlf
 
-*last updated 2020.08.25*
+*last updated 2022.01.25*
 
 A Python package to analyse MUSE data and measure the Planetary Nebula Luminosity Function (PNLF).
 
@@ -8,15 +8,15 @@ A Python package to analyse MUSE data and measure the Planetary Nebula Luminosit
 
 ## Description
 
-This repository contains the code for Scheuermann et al. (submitted). 
+This repository contains the code for Scheuermann et al. ([2022](https://arxiv.org/abs/2201.04641)).
 
-The data used in this project has been observed for the [PHANGS](https://sites.google.com/view/phangs/home) collaboration (Emsellem et al. [submitted](https://arxiv.org/abs/2110.03708)).
+The data used in this project has been observed for the [PHANGS](https://sites.google.com/view/phangs/home) collaboration (Emsellem et al. [2022](https://arxiv.org/abs/2110.03708)).
 
 The *planetary nebula luminosity function* (PNLF) is an empirical relation that can be used to measure the distance to nearby galaxies. 
 
 ![PNLF](https://raw.githubusercontent.com/fschmnn/pnlf/master/references/pnlf.png)
 
-A detailed description of the functionality is either provided by the docstrings of the functions and classes or in the jupyter notebooks. They are annotated with additional background information on what what's happening.
+A detailed description of the functionality is either provided by the docstrings of the functions and classes or in the jupyter notebooks. They are annotated with additional background information on what is happening.
 
 
 
@@ -86,10 +86,10 @@ The structure of this project was inspired by [this blog post](https://florianwi
 ├── LICENSE.txt             <- License as chosen on the command-line.
 ├── README.md               <- The top-level README for developers.
 ├── data
+│   ├── catalogues			<- Final catalogues of objects
 │   ├── external            <- Data from third party sources.
 │   ├── interim             <- Intermediate data that has been transformed.
-│   ├── processed           <- The final, canonical data sets for modeling.
-│   └── raw                 <- The original, immutable data dump.
+│   └── literature distances<- Compilation of literature distances from NED
 ├── docs                    <- Directory for Sphinx documentation in rst or md.
 ├── environment.yaml        <- The conda environment file for reproducibility.
 ├── notebooks               <- Jupyter notebooks. 
@@ -105,9 +105,11 @@ The structure of this project was inspired by [this blog post](https://florianwi
 └── tests                   <- Unit tests which can be run with `py.test`.
 ```
 
+
+
 ## Usage
 
-Here are a few examples on what to do with this package
+This is an example on how to use this package. 
 
 1. Read a fits file from the MUSE data release pipeline (MUSEDAP). This assumes that you have a folder `NGC628` inside your `raw` folder (for more details, see the documentation of `ReadLineMaps`)
 
@@ -119,7 +121,7 @@ Here are a few examples on what to do with this package
    NGC628 = ReadLineMaps(data_folder / 'NGC628')
    ```
 
-2. Search for sources in this file
+2. Search for point sources in the [OIII] linemap
 
    ```python
    from photutils import DAOStarFinder
@@ -127,3 +129,69 @@ Here are a few examples on what to do with this package
    
    sources = detect_unresolved_sources(NGC628,['OIII5006'],DAOStarFinder)
    ```
+
+3. Measure the fluxes for the previously detected objects
+
+   ```python
+   from pnlf.photometry import measure_flux 
+   
+   aperture_size = 2.5   # aperture size in fwhm
+   power_index = 2.3	  # power index of the moffat (used for aperture correction)
+   Ebv = 0.062 		  # galactic foreground extinction for this galaxy
+   
+   flux = measure_flux(NGC628,
+                       sources,
+                       alpha=power_index,
+                       Rv=3.1,
+                       Ebv=Ebv,
+                       aperture_size=aperture_size)
+   ```
+
+4. Emission line diagnostics to classify each object
+
+   ```python
+   from pnlf.analyse import emission_line_diagnostics
+   
+   mu,mu_err = 29.9, 0.1 		# initial guess for the distance modulus
+   completeness_limit = 29		# completeness limit of our data
+   
+   tbl = emission_line_diagnostics(flux,mu,
+                                   completeness_limit,
+                                   distance_modulus_err=mu_err) 
+   ```
+
+5. Fit the PNLF
+
+   ```python
+   from pnlf.analyse import MaximumLikelihood1D, pnlf, cdf
+   from pnlf.plot.pnlf import plot_pnlf
+   from pnlf.auxiliary import mu_to_parsec
+   from scipy.stats import kstest
+   
+   Mmax = -4.47
+   
+   
+   data = tbl[np.where((tbl['type']=='PN') & (tbl['mOIII']<completeness_limit))]['mOIII']
+   err  = tbl[np.where((tbl['type']=='PN') & (tbl['mOIII']<completeness_limit))]['dmOIII']
+   
+   fitter = MaximumLikelihood1D(pnlf,data,err=err,mhigh=completeness_limit,Mmax=Mmax)
+   mu,mu_p,mu_m = fitter([29])
+   
+   d,(dp,dm)=mu_to_parsec(mu,[mu_p,mu_m])
+   print('{:.2f} + {:.2f} - {:.2f}'.format(mu,mu_p,mu_m))
+   print('{:.2f} + {:.2f} - {:.2f}'.format(d,dp,dm))
+   
+   ks,pv = kstest(data,cdf,args=(mu,completeness_limit))
+   print(f'statistic={ks:.3f}, pvalue={pv:.3f}')
+   
+   binsize = (completeness_limit-Mmax-mu) / 5
+   
+   filename = f'NGC0628_PNLF'
+   axes = plot_pnlf(data,mu,completeness_limit,
+                    binsize=binsize,mhigh=28.5,
+                    Mmax=Mmax,
+                    filename=filename)
+   ```
+
+   
+
