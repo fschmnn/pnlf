@@ -239,6 +239,8 @@ def plot_distances(name,distance,plus,minus,distances,filename=None):
     ax2 = ax.twinx()
     ax2.set_yticks(list(distances['y'])+[len(distances['y'])+1],minor=False)
     ax2.set_yticklabels(list(distances['link'])+[name],ha="left",fontsize=7)
+    # the ticklabels are links so we color them blue
+    plt.setp(ax2.get_yticklabels(), color="blue")
     ax2.set_ylim([0.5,len(distances)+0.5])
     
     # create second x-axis in Mpc
