@@ -22,8 +22,7 @@ from photutils import aperture_photometry      # measure flux in aperture
 
 from photutils import Background2D, MedianBackground, MMMBackground, SExtractorBackground
 
-from dust_extinction.parameter_averages import CCM89, F99
-import pyneb
+import pyneb as pn
 
 import scipy.optimize as optimization          # fit Gaussian to growth curve
 
@@ -274,7 +273,7 @@ def measure_flux(LineMaps,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,bac
         # linemaps are already MW extinction corrected (OIII sum is not) 
         # the new [OIII] fluxes use the DAP [OIII] errors and hence are already extinction corrected
         if line=='OIII5006':
-            rc = pyneb.RedCorr(R_V=3.1,E_BV=Ebv,law='CCM89')
+            rc = pn.RedCorr(R_V=3.1,E_BV=Ebv,law='CCM89')
             flux['OIII5006_flux'] *= rc.getCorr(5006)
             flux['OIII5006_flux_raw'] *= rc.getCorr(5006)
             flux['OIII5006_bkg_median'] *= rc.getCorr(5006)
@@ -293,7 +292,7 @@ def measure_flux(LineMaps,peak_tbl,alpha,Rv,Ebv,lines=None,aperture_size=1.5,bac
     # we do not calculate an error of E(B-V) and hance also do not account for this in the corrected errors
     if 'HB4861' in lines and 'HA6562' in lines:
         logger.info('correction for internal extinction with balmer decrement')
-        rc = pyneb.RedCorr(R_V=3.1,law='CCM89')
+        rc = pn.RedCorr(R_V=3.1,law='CCM89')
         rc.setCorr(obs_over_theo= flux['HA6562_flux']/flux['HB4861_flux'] / 2.86, wave1=6562.81, wave2=4861.33)
         rc.E_BV[(rc.E_BV<0) | (flux['HB4861_flux']<3*flux['HB4861_flux_err']) |  (flux['HA6562_flux']<3*flux['HA6562_flux_err'])] = 0
         flux['EBV_balmer'] = rc.E_BV
