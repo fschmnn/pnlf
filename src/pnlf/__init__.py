@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 env = sys.executable.split('\\')[-2]
 
 if env != 'pymuse':
-    logger.warning(f'\nYou are currently in the enviorment "{env}".\n' +
-                   f'It is recommendet to run pymuse in a dedicated enviornment.\n' + 
+    logger.warning(f'\nYou are currently in the enviorment `{env}`.\n' +
+                   f'It is recommendet to use this package in a dedicated enviornment `pymuse`.\n' + 
                    f'To do this type `conda activate pymuse`.'
                    )
